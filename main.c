@@ -45,14 +45,6 @@ void resOfferToSdpAnswer(char *res_str)
     strcat(answer, "}");
     
  }
- 
-
-#include <curl/curl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-char *Hbuffer[1024];
 
 struct memory {
    char *response;
