@@ -7,7 +7,7 @@ Requirements:
 - Install additional dependencies using homebrew
 
 ```
-brew install gstreamer gst-plugins-good gst-plugins-bad curl cmake gst-libav
+brew install gstreamer gst-plugins-good gst-plugins-bad libsoup icu4c cmake gst-libav
 ```
 
 Build:
