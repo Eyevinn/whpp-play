@@ -31,13 +31,13 @@ int32_t main(int32_t argc, char **argv) {
 
 
     const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
-    //const char req_content_type = "application/json"
 
     SoupSession *session = soup_session_new ();
     SoupMessageHeaders *response_headers;
     const char *content_type;
     goffset content_length;
-    char content[4096];
+    char content[15360]; //content buffer is likely to small to receive entire response
+    int readBytes;
     SoupMessage *msg = soup_message_new (SOUP_METHOD_POST, url);
     GError *error = NULL;
       GInputStream *in_stream = soup_session_send (
@@ -45,12 +45,6 @@ int32_t main(int32_t argc, char **argv) {
         msg,
         NULL,
         &error);
-
-     /*GBytes *bytes = soup_session_send_and_read (
-        session,
-        msg,
-        NULL, // Pass a GCancellable here if you want to cancel a download
-        &error);*/
 
 if (error) {
         g_printerr ("Failed to download: %s\n", error->message);
@@ -63,19 +57,18 @@ if (error) {
     response_headers = soup_message_get_response_headers (msg);
     content_type = soup_message_headers_get_content_type (response_headers, NULL);
     content_length = soup_message_headers_get_content_length (response_headers);
-    g_input_stream_read(in_stream, content, 1024, NULL, NULL);
-    g_print(content);
-
-    printf("Receiving:");
-    g_print("%s", content_type);
-    g_print("%i", content_length);
-    //g_print(msg);
+    g_input_stream_read_all(in_stream, content, 14336, readBytes, NULL, NULL);
     
-    //g_bytes_unref (bytes);
+    g_print(content);
+    //g_print("%s", content_type);
+    g_print("%i", content_length);
+
     g_object_unref (in_stream);
     g_object_unref (msg);
     g_object_unref (session);
 
+
+    printf("Returning now...");
     return 0;
 
 }
