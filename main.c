@@ -35,8 +35,11 @@ int32_t main(int32_t argc, char **argv) {
     SoupSession *session = soup_session_new ();
     SoupMessageHeaders *response_headers;
     const char *content_type;
+    const char *location;
     goffset content_length;
-    char content[15360]; //content buffer is likely to small to receive entire response
+    char content[15360];
+    char htype;
+
     int readBytes;
     SoupMessage *msg = soup_message_new (SOUP_METHOD_POST, url);
     GError *error = NULL;
@@ -57,11 +60,13 @@ if (error) {
     response_headers = soup_message_get_response_headers (msg);
     content_type = soup_message_headers_get_content_type (response_headers, NULL);
     content_length = soup_message_headers_get_content_length (response_headers);
-    g_input_stream_read_all(in_stream, content, 14336, readBytes, NULL, NULL);
-    
-    g_print(content);
+    g_input_stream_read_all (in_stream, content, 14336, readBytes, NULL, NULL);
+    location = soup_message_headers_get_one (response_headers, "location");
+
+    //g_print(content);
+    g_print(location);
     //g_print("%s", content_type);
-    g_print("%i", content_length);
+    //g_print("%i", content_length);
 
     g_object_unref (in_stream);
     g_object_unref (msg);
