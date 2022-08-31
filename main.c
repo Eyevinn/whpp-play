@@ -1,3 +1,5 @@
+#define GST_USE_UNSTABLE_API 1 //Removes compile warning
+
 #include <glib.h>
 #include <gst/gst.h>
 #include <gst/sdp/sdp.h>
@@ -7,32 +9,21 @@
 #include <string.h>
 #include <libsoup/soup.h>
 
+//FLOW
+//Create graph pipeline
+//gst_element_factory_make()
+//gst_element_link_many()
+//Set / get properties
+//g_signal_connect -- perhaps here onnegotiationneeded callback
 
-//GMainLoop* mainLoop = NULL;
+//webrtc -> fakesink
+
+
 
 /*
-void intSignalHandler(int32_t code)
-{
-    g_main_loop_quit(mainLoop);
-}
-*/
+void getPostOffer(){
 
-
-int32_t main(int32_t argc, char **argv) {
-    /*{
-        struct sigaction sigactionData = {};
-        sigactionData.sa_handler = intSignalHandler;
-        sigactionData.sa_flags = 0;
-        sigemptyset(&sigactionData.sa_mask);
-        sigaction(SIGINT, &sigactionData, NULL);
-    }
-*/
-    //gstreamer init
-    //mainLoop = g_main_loop_new(NULL, FALSE);
-    //g_main_loop_run(mainLoop);
-
-
-    const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
+ const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
 
     SoupSession *session = soup_session_new ();
     SoupMessageHeaders *response_headers;
@@ -51,7 +42,6 @@ if (error) {
         g_error_free (error);
         g_object_unref (msg);
         g_object_unref (session);
-        return 1;
     }
 
     response_headers = soup_message_get_response_headers (msg);
@@ -61,11 +51,13 @@ if (error) {
     location = soup_message_headers_get_one (response_headers, "location");
 
     //Get offer value
-    char *textoffer;
+    gchar *textoffer;
     textoffer = strtok(content, ":");
     textoffer = strtok(NULL, ",");
+    textoffer++;
+    textoffer[strlen(textoffer)-1] = 0;
     g_strchomp(textoffer);
-    //g_print("%s", textoffer);
+    g_print("%s", textoffer);
     //g_print("%s", content);
     //g_print("%s", location);
     //g_print("%s", content_type);
@@ -76,28 +68,104 @@ if (error) {
     g_object_unref (msg);
     g_object_unref (session);
 
+}
+*/
 
-    //on_offer_received
 
-    //sdp generation should be after setting remote and local and remote description
-    /*FIRST DRAFT OF SDP GENRATION WITH SUCCESS ASSERTION
-    int ret;
-    GstSDPMessage *sdp;
-    ret = gst_sdp_message_new (&sdp);
-    g_assert_cmphex (ret, ==, GST_SDP_OK);
-    ret = gst_sdp_message_parse_buffer ((guint8 *) textoffer, strlen (textoffer), sdp);
-    g_assert_cmphex (ret, ==, GST_SDP_OK);
-    g_print("%s", sdp);
+typedef struct _CustomData {
+    GstElement* source;
+    GstElement* pipeline;
+    GstElement* fakeSinkElement;
+} CustomData;
 
-    GstWebRTCSessionDescription *offer = NULL;
-    offer = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_OFFER, sdp);
-    g_assert_nonnull (offer);
-    */
+static void on_negotiation_needed_handler (GstElement *src, GstPad *pad, CustomData *data);
 
-    printf("Returning now...");
+int32_t main(int32_t argc, char **argv) {
+
+    gst_init(NULL, NULL);
+
+    GMainLoop* mainLoop;
+    CustomData data;
+    
+    data.source = gst_element_factory_make ("webrtcbin", "source");
+    if (!data.source) {
+        g_print("Failed to make element source");
+        return 1;
+    }
+    data.fakeSinkElement = gst_element_factory_make ("fakesink", "sink");
+    if (!data.fakeSinkElement) {
+        g_print("Failed to make element sink");
+        return 1;
+    }
+    data.pipeline = gst_pipeline_new ("test-pipeline");
+    if (!data.pipeline) {
+        g_print("Failed to make element pipeline");
+        return 1;
+    }
+
+    if (!gst_bin_add(GST_BIN(data.pipeline), data.source)){
+        g_print("Failed to add element source");
+        return 1;
+    }
+    
+    if (!gst_bin_add(GST_BIN(data.pipeline), data.fakeSinkElement)) {
+        g_print("Failed to add element sink");
+        return 1;
+    }
+    
+    /* Connect to the pad-added signal */
+    g_print ("Connecting... ");
+    g_signal_connect (data.source, "on_negotiation_needed", G_CALLBACK (on_negotiation_needed_handler), &data);
+
+ 
+    /* Start playing */
+    g_print ("Start playing... ");
+    gst_element_set_state (data.pipeline, GST_STATE_PLAYING);
+
+    g_print ("main loop... ");
+    mainLoop = g_main_loop_new(NULL, FALSE);
+
+    // Will loop forever
+    g_print ("Looping... ");
+    g_main_loop_run(mainLoop);
+
+   /* Free resources */
+    g_main_loop_unref(mainLoop);
+    gst_element_set_state (data.pipeline, GST_STATE_NULL);
+    gst_object_unref (data.pipeline);
+    gst_deinit();
+    g_print("Returning... ");
     return 0;
 
 }
 
-
+/* This function will be called by the pad-added signal */
+static void on_negotiation_needed_handler (GstElement *src, GstPad *new_pad, CustomData *data) {
+  GstPad *sink_pad = gst_element_get_static_pad (data->fakeSinkElement, "sink");
+  GstPadLinkReturn ret;
+  GstCaps *new_pad_caps = NULL;
+  GstStructure *new_pad_struct = NULL;
+  const gchar *new_pad_type = NULL;
+    
+    g_print ("Callback!");
+    
+g_print ("Received new pad '%s' from '%s':\n", GST_PAD_NAME (new_pad), GST_ELEMENT_NAME (src));
+    
+    /* Check the new pad's type */
+    new_pad_caps = gst_pad_get_current_caps (new_pad);
+    new_pad_struct = gst_caps_get_structure (new_pad_caps, 0);
+    new_pad_type = gst_structure_get_name (new_pad_struct);
+    
+    ret = gst_pad_link (new_pad, sink_pad);
+    
+    if (GST_PAD_LINK_FAILED (ret)) {
+       g_print ("Type is '%s' but link failed.\n", new_pad_type);
+     } else {
+       g_print ("Link succeeded (type '%s').\n", new_pad_type);
+     }
+    
+    gst_caps_unref (new_pad_caps);
+    gst_object_unref (sink_pad);
+    
+}
 

@@ -16,7 +16,6 @@ pkg_search_module(GLIB REQUIRED glib-2.0)
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
 pkg_check_modules(GSTREAMER_WEBRTC REQUIRED gstreamer-webrtc-1.0)
 pkg_check_modules(GSTREAMER_SDP REQUIRED gstreamer-sdp-1.0)
-pkg_check_modules(CURL REQUIRED libcurl)
 pkg_check_modules(SOUP REQUIRED libsoup-3.0)
 
 set(FILES
