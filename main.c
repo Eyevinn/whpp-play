@@ -12,7 +12,9 @@
 /*
 void getPostOffer(){
 
- const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
+const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm"; //OLD
+
+//https://wrtc-edge.lab.sto.eyevinn.technology:8443/whpp/channel/sthlm
 
     SoupSession *session = soup_session_new ();
     SoupMessageHeaders *response_headers;
@@ -74,6 +76,14 @@ if (error) {
 
 //webrtc -> fakesink
 
+static GstStaticPadTemplate src_factory =
+GST_STATIC_PAD_TEMPLATE (
+  "src_%u",
+  GST_PAD_SRC,
+  GST_PAD_SOMETIMES,
+  GST_STATIC_CAPS ("ANY")
+);
+
 typedef struct _CustomData {
     GstElement* source;
     GstElement* pipeline;
@@ -101,6 +111,16 @@ int32_t main(int32_t argc, char **argv) {
 
     GMainLoop* mainLoop;
     CustomData data;
+    GstWebRTCSessionDescription* sdp_dummy;
+    GstSDPMessage *sdp_msg;
+    
+    gst_sdp_message_new (&sdp_msg);
+    sdp_dummy = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_ANSWER, sdp_msg);
+    if (!sdp_dummy) {
+        g_print("Failed to create sdp dummy");
+        return 1;
+    }
+    g_print("%s", gst_sdp_message_as_text(sdp_dummy->sdp));
     
    
     data.source = gst_element_factory_make ("webrtcbin", "source");
@@ -133,18 +153,17 @@ int32_t main(int32_t argc, char **argv) {
     
     g_print ("Connecting... ");
     g_signal_connect (data.source, "pad-added", G_CALLBACK (pad_added_handler), &data);
+    g_signal_emit_by_name(data.source, "set-remote-description", sdp_dummy, NULL);
     
     //Create pads
-    data.source_pad = gst_pad_new("source_pad", GST_PAD_SRC);
+    data.source_pad = gst_pad_new_from_static_template (&src_factory, "source_pad_2");
+    //data.source_pad = gst_pad_new("source_pad", GST_PAD_SRC);
+    
+    //gst_element_add_pad emits pad_added signal
     if (!gst_element_add_pad (data.source, data.source_pad)) {
         g_print("Failed to add pad to source");
         return 1;
     }
-
-    if (!gst_element_link_many(data.source, data.fakeSinkElement, NULL)) {
-            printf("Failed to link elements\n");
-            //return 1;
-        }
 
     
     /* Start playing */
@@ -171,45 +190,47 @@ int32_t main(int32_t argc, char **argv) {
 
 }
 
-/* This function will be called by the pad-added signal */
-/*static void on_negotiation_needed_handler (GstElement *src, CustomData *data) {
-    
-    g_print ("Negotiation needed Callback! ");
-    //Perhaps here needs to be ICE gathering
-    //gst_pad_get_direction (GstPad * pad);
-  
-
-}*/
 
 static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data) {
     
   g_print("pad handler callback... ");
   GstPad *sink_pad = gst_element_get_static_pad (data->fakeSinkElement, "sink");
   GstPadLinkReturn ret;
-  //GstCaps *new_pad_caps = NULL;
-  //GstStructure *new_pad_struct = NULL;
-  const gchar *new_pad_type = NULL;
-
+  GstCaps *new_pad_caps;
+  //GstStructure *new_pad_struct;
+  const gchar *new_pad_type;
+    
   g_print ("Received new pad '%s' from '%s':\n", GST_PAD_NAME (new_pad), GST_ELEMENT_NAME (src));
 
-  /* If our converter is already linked, we have nothing to do here */
-  if (gst_pad_is_linked (sink_pad)) {
-    g_print ("We are already linked. Ignoring.\n");
-
-  }
 
   /* Check the new pad's type */
-  //new_pad_caps = gst_pad_get_current_caps (new_pad);
+  new_pad_caps = gst_pad_get_current_caps (new_pad);
   //new_pad_struct = gst_caps_get_structure (new_pad_caps, 0);
   //new_pad_type = gst_structure_get_name (new_pad_struct);
 
   /* Attempt the link */
-  ret = gst_pad_link (new_pad, sink_pad);
+  if (gst_pad_can_link (new_pad, sink_pad)) {
+        g_print("Compatible pads... ");
+    }
+    
+  //ret = gst_pad_link (new_pad, sink_pad);
+  ret = gst_element_link_pads(data->source, GST_PAD_NAME (new_pad), data->fakeSinkElement, GST_PAD_NAME (sink_pad));
   if (GST_PAD_LINK_FAILED (ret)) {
     g_print ("Type is '%s' but link failed.\n", new_pad_type);
   } else {
-    g_print ("Link succeeded (type '%s').\n", new_pad_type);
+    g_print ("Pad link succeeded (type '%s').\n", new_pad_type);
   }
+    
+    //Link elements should not be needed if pad links are successful ?
+    /*FROM DOC: Elements can be linked through their pads. If the link is straightforward, use the gst_element_link convenience function to link two elements, or gst_element_link_many for more elements in a row. Use gst_element_link_filtered to link two elements constrained by a specified set of GstCaps. For finer control, use gst_element_link_pads and gst_element_link_pads_filtered to specify the pads to link on each element by name.*/
+   
+    //Try to link elements
+    /*
+    if (!gst_element_link_many(data->source, data->fakeSinkElement, NULL)) {
+            printf("Failed to link elements\n");
+            //return 1;
+        }
+     */
 }
 
 
