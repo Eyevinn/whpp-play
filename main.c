@@ -97,6 +97,8 @@ static void pad_added_handler (GstElement *src, GstPad *pad, CustomData *data);
 
 int32_t main(int32_t argc, char **argv) {
     
+    
+    g_setenv("GST_DEBUG_DUMP_DOT_DIR", "/Users/olivershin/Documents/", 0);
     gst_init(NULL, NULL);
     
     if (!gst_debug_is_active()) {
@@ -175,6 +177,8 @@ int32_t main(int32_t argc, char **argv) {
 
     g_print ("main loop... ");
     mainLoop = g_main_loop_new(NULL, FALSE);
+    //TO EXPORT RUN IN TERMINAL//dot -Tpng pipeline.dot -o graf.png
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(data.pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
 
     // Will loop forever
     g_print ("Looping... ");
