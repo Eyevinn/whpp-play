@@ -9,12 +9,29 @@
 #include <string.h>
 #include <libsoup/soup.h>
 
-/*
-void getPostOffer(){
+//New brew
+//apt-get install libgstreamer1.0-0 gstreamer1.0-plugins-bad gstreamer1.0-plugins-good gstreamer1.0-libav gstreamer1.0-plugins-rtp gstreamer1.0-nice libgstreamer1.0-dev libgstreamer-plugins-bad1.0-dev
 
-const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm"; //OLD
+static GstStaticPadTemplate src_factory =
+GST_STATIC_PAD_TEMPLATE (
+  "src_%u",
+  GST_PAD_SRC,
+  GST_PAD_SOMETIMES,
+  GST_STATIC_CAPS ("ANY")
+);
 
-//https://wrtc-edge.lab.sto.eyevinn.technology:8443/whpp/channel/sthlm
+typedef struct _CustomData {
+    GstElement* source;
+    GstElement* pipeline;
+    GstElement* fakeSinkElement;
+    GstPad *source_pad;
+} CustomData;
+
+static void pad_added_handler (GstElement *src, GstPad *pad, CustomData *data);
+
+static void getPostOffer(){
+
+const char url[1024] = "https://wrtc-edge.lab.sto.eyevinn.technology:8443/whpp/channel/sthlm"; 
 
     SoupSession *session = soup_session_new ();
     SoupMessageHeaders *response_headers;
@@ -48,11 +65,11 @@ if (error) {
     textoffer++;
     textoffer[strlen(textoffer)-1] = 0;
     g_strchomp(textoffer);
-    g_print("%s", textoffer);
+    //g_print("%s", textoffer);
     //g_print("%s", content);
     //g_print("%s", location);
     //g_print("%s", content_type);
-    //g_print("%i", content_length);
+    //g_print("%i", content_length);  
 
     //Cleanup
     g_object_unref (in_stream);
@@ -60,76 +77,26 @@ if (error) {
     g_object_unref (session);
 
 }
-*/
 
-
-//gst-launch-1.0 webrtcbin ! rtph264depay ! fakesink
-//GST_DEBUG=5 gst-launch-1.0 webrtcbin name=webrtcbin stun-server=stun:stun.l.google.com:19302 ! queue ! fakesink &> dump.txt
-
-
-//FLOW
-//Create graph pipeline
-//gst_element_factory_make()
-//gst_element_link_many()
-//Set / get properties
-//g_signal_connect -- perhaps here onnegotiationneeded callback
-
-//webrtc -> fakesink
-
-static GstStaticPadTemplate src_factory =
-GST_STATIC_PAD_TEMPLATE (
-  "src_%u",
-  GST_PAD_SRC,
-  GST_PAD_SOMETIMES,
-  GST_STATIC_CAPS ("ANY")
-);
-
-typedef struct _CustomData {
-    GstElement* source;
-    GstElement* pipeline;
-    GstElement* fakeSinkElement;
-    GstPad *source_pad;
-} CustomData;
-
-
-//static void on_negotiation_needed_handler (GstElement *src, CustomData *data);
-static void pad_added_handler (GstElement *src, GstPad *pad, CustomData *data);
 
 int32_t main(int32_t argc, char **argv) {
-    
-    
-    g_setenv("GST_DEBUG_DUMP_DOT_DIR", "/Users/olivershin/Documents/", 0);
-    gst_init(NULL, NULL);
-    
-    if (!gst_debug_is_active()) {
-        gst_debug_set_active(TRUE);
-        GstDebugLevel dbglevel = 5;
-        if (dbglevel < GST_LEVEL_ERROR) {
-            dbglevel = GST_LEVEL_ERROR;
-            gst_debug_set_default_threshold(dbglevel);
-        }
-    }
 
+    //Set env
+    //Dump graph .dot
+    g_setenv("GST_DEBUG_DUMP_DOT_DIR", "/Users/olivershin/Documents/", 0);
+    //setenv("GST_DEBUG", "4", 0);
+    setenv("GST_PLUGIN_PATH","/opt/homebrew/lib/gstreamer-1.0",0);
+    gst_init(NULL, NULL);
 
     GMainLoop* mainLoop;
     CustomData data;
-    GstWebRTCSessionDescription* sdp_dummy;
-    GstSDPMessage *sdp_msg;
-    
-    gst_sdp_message_new (&sdp_msg);
-    sdp_dummy = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_ANSWER, sdp_msg);
-    if (!sdp_dummy) {
-        g_print("Failed to create sdp dummy");
-        return 1;
-    }
-    g_print("%s", gst_sdp_message_as_text(sdp_dummy->sdp));
-    
    
+    //Make elements
     data.source = gst_element_factory_make ("webrtcbin", "source");
     if (!data.source) {
         g_print("Failed to make element source");
         return 1;
-    }
+    }   
     
     data.fakeSinkElement = gst_element_factory_make ("fakesink", "sink");
     if (!data.fakeSinkElement) {
@@ -154,8 +121,8 @@ int32_t main(int32_t argc, char **argv) {
     }
     
     g_print ("Connecting... ");
+    //Signals
     g_signal_connect (data.source, "pad-added", G_CALLBACK (pad_added_handler), &data);
-    g_signal_emit_by_name(data.source, "set-remote-description", sdp_dummy, NULL);
     
     //Create pads
     data.source_pad = gst_pad_new_from_static_template (&src_factory, "source_pad_2");

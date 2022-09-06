@@ -9,6 +9,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-ggdb -O3 -DNDEBUG -Wall -Wuninitialized -Wsign-com
 if (APPLE)
         message("OSX")
         set(ENV{PKG_CONFIG_PATH} "/opt/homebrew/Cellar/icu4c/70.1/lib/pkgconfig")
+        
 endif()
 
 find_package(PkgConfig)
@@ -30,7 +31,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
         ${GSTREAMER_INCLUDE_DIRS}
         ${GSTREAMER_WEBRTC_INCLUDE_DIRS}
         ${GSTREAMER_SDP_INCLUDE_DIRS}
-        ${CURL_INCLUDE_DIRS}
         ${SOUP_INCLUDE_DIRS})
 
 target_link_libraries(${PROJECT_NAME}
@@ -38,5 +38,4 @@ target_link_libraries(${PROJECT_NAME}
         ${GSTREAMER_LDFLAGS}
         ${GSTREAMER_WEBRTC_LDFLAGS}
         ${GSTREAMER_SDP_LDFLAGS}
-        ${CURL_LDFLAGS}
         ${SOUP_LDFLAGS})
