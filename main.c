@@ -9,8 +9,6 @@
 #include <string.h>
 #include <libsoup/soup.h>
 
-//New brew
-//apt-get install libgstreamer1.0-0 gstreamer1.0-plugins-bad gstreamer1.0-plugins-good gstreamer1.0-libav gstreamer1.0-plugins-rtp gstreamer1.0-nice libgstreamer1.0-dev libgstreamer-plugins-bad1.0-dev
 
 static GstStaticPadTemplate src_factory =
 GST_STATIC_PAD_TEMPLATE (
@@ -21,15 +19,54 @@ GST_STATIC_PAD_TEMPLATE (
 );
 
 typedef struct _CustomData {
-    GstElement* source;
+    GstElement* webrtc_source;
     GstElement* pipeline;
     GstElement* fakeSinkElement;
     GstPad *source_pad;
     gchar *sdpOffer;
+    gchar *location;
 } CustomData;
 CustomData data;
 
 static void pad_added_handler (GstElement *src, GstPad *pad, CustomData *data);
+
+static void handleSDPs () {
+
+    //Set remote description as received sdp offer
+    g_print("Handling SDPs... ");
+
+    GstSDPMessage* offerMessage;
+    GstSDPMessage* answerMessage;
+    GstWebRTCSessionDescription* offerDesc;
+    GstWebRTCSessionDescription* answerDesc;
+
+        if (gst_sdp_message_new_from_text (data.sdpOffer, &offerMessage) != GST_SDP_OK)
+        {
+            g_print("Unable to create SDP object from offer");
+        }
+
+        offerDesc = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_OFFER, offerMessage);
+        if (!offerDesc)
+        {
+             g_print("Unable to create SDP object from offer msg");
+        }
+
+    g_signal_emit_by_name (data.webrtc_source, "set-remote-description", offerDesc, NULL);
+
+        if(gst_sdp_message_new (&answerMessage) != GST_SDP_OK)
+        {
+            g_print("Unable to create SDP object from answer");
+        }
+
+        answerDesc = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_ANSWER, answerMessage);
+        if (!answerDesc)
+        {
+             g_print("Unable to create SDP object from answer msg");
+        }
+
+    g_signal_emit_by_name(data.webrtc_source, "set-local-description", answerDesc, NULL);
+
+}
 
 static gchar getPostOffer(){
 
@@ -67,11 +104,6 @@ if (error) {
     textoffer++;
     textoffer[strlen(textoffer)-1] = 0;
     g_strchomp(textoffer);
-    //g_print("%s", textoffer);
-    //g_print("%s", content);
-    //g_print("%s", location);
-    //g_print("%s", content_type);
-    //g_print("%i", content_length);  
 
     //Cleanup
     g_object_unref (in_stream);
@@ -79,6 +111,7 @@ if (error) {
     g_object_unref (session);
 
     data.sdpOffer = textoffer;
+    data.location = location;
 
 }
 
@@ -91,14 +124,13 @@ int32_t main(int32_t argc, char **argv) {
     //setenv("GST_DEBUG", "4", 0);
     setenv("GST_PLUGIN_PATH","/opt/homebrew/lib/gstreamer-1.0", 0);
     getPostOffer();
-    gst_init(NULL, NULL);
 
+    gst_init(NULL, NULL);
     GMainLoop* mainLoop;
-    g_print("%s", data.sdpOffer);
 
     //Make elements
-    data.source = gst_element_factory_make ("webrtcbin", "source");
-    if (!data.source) {
+    data.webrtc_source = gst_element_factory_make ("webrtcbin", "source");
+    if (!data.webrtc_source) {
         g_print("Failed to make element source");
         return 1;
     }   
@@ -115,7 +147,7 @@ int32_t main(int32_t argc, char **argv) {
         return 1;
     }
 
-    if (!gst_bin_add(GST_BIN(data.pipeline), data.source)){
+    if (!gst_bin_add(GST_BIN(data.pipeline), data.webrtc_source)){
         g_print("Failed to add element source");
         return 1;
     }
@@ -127,17 +159,19 @@ int32_t main(int32_t argc, char **argv) {
     
     g_print ("Connecting... ");
     //Signals
-    g_signal_connect (data.source, "pad-added", G_CALLBACK (pad_added_handler), &data);
+    g_signal_connect (data.webrtc_source, "pad-added", G_CALLBACK (pad_added_handler), &data);
     
     //Create pads
     data.source_pad = gst_pad_new_from_static_template (&src_factory, "source_pad");
     
     //gst_element_add_pad emits pad_added signal
-    if (!gst_element_add_pad (data.source, data.source_pad)) {
+    if (!gst_element_add_pad (data.webrtc_source, data.source_pad)) {
         g_print("Failed to add pad to source");
         return 1;
     }
 
+    //Handle SDPs
+    handleSDPs();
     
     /* Start playing */
     g_print ("Start playing... ");
@@ -177,7 +211,6 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
     
   g_print ("Received new pad '%s' from '%s':\n", GST_PAD_NAME (new_pad), GST_ELEMENT_NAME (src));
 
-
   /* Check the new pad's type */
   new_pad_caps = gst_pad_get_current_caps (new_pad);
   //new_pad_struct = gst_caps_get_structure (new_pad_caps, 0);
@@ -189,23 +222,13 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
     }
     
   //ret = gst_pad_link (new_pad, sink_pad);
-  ret = gst_element_link_pads(data->source, GST_PAD_NAME (new_pad), data->fakeSinkElement, GST_PAD_NAME (sink_pad));
+  ret = gst_element_link_pads(data->webrtc_source, GST_PAD_NAME (new_pad), data->fakeSinkElement, GST_PAD_NAME (sink_pad));
   if (GST_PAD_LINK_FAILED (ret)) {
     g_print ("Type is '%s' but link failed.\n", new_pad_type);
   } else {
     g_print ("Pad link succeeded (type '%s').\n", new_pad_type);
   }
     
-    //Link elements should not be needed if pad links are successful ?
-    /*FROM DOC: Elements can be linked through their pads. If the link is straightforward, use the gst_element_link convenience function to link two elements, or gst_element_link_many for more elements in a row. Use gst_element_link_filtered to link two elements constrained by a specified set of GstCaps. For finer control, use gst_element_link_pads and gst_element_link_pads_filtered to specify the pads to link on each element by name.*/
-   
-    //Try to link elements
-    /*
-    if (!gst_element_link_many(data->source, data->fakeSinkElement, NULL)) {
-            printf("Failed to link elements\n");
-            //return 1;
-        }
-     */
 }
 
 
