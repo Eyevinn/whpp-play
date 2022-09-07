@@ -25,11 +25,13 @@ typedef struct _CustomData {
     GstElement* pipeline;
     GstElement* fakeSinkElement;
     GstPad *source_pad;
+    gchar *sdpOffer;
 } CustomData;
+CustomData data;
 
 static void pad_added_handler (GstElement *src, GstPad *pad, CustomData *data);
 
-static void getPostOffer(){
+static gchar getPostOffer(){
 
 const char url[1024] = "https://wrtc-edge.lab.sto.eyevinn.technology:8443/whpp/channel/sthlm"; 
 
@@ -76,6 +78,8 @@ if (error) {
     g_object_unref (msg);
     g_object_unref (session);
 
+    data.sdpOffer = textoffer;
+
 }
 
 
@@ -85,12 +89,13 @@ int32_t main(int32_t argc, char **argv) {
     //Dump graph .dot
     g_setenv("GST_DEBUG_DUMP_DOT_DIR", "/Users/olivershin/Documents/", 0);
     //setenv("GST_DEBUG", "4", 0);
-    setenv("GST_PLUGIN_PATH","/opt/homebrew/lib/gstreamer-1.0",0);
+    setenv("GST_PLUGIN_PATH","/opt/homebrew/lib/gstreamer-1.0", 0);
+    getPostOffer();
     gst_init(NULL, NULL);
 
     GMainLoop* mainLoop;
-    CustomData data;
-   
+    g_print("%s", data.sdpOffer);
+
     //Make elements
     data.source = gst_element_factory_make ("webrtcbin", "source");
     if (!data.source) {
@@ -125,8 +130,7 @@ int32_t main(int32_t argc, char **argv) {
     g_signal_connect (data.source, "pad-added", G_CALLBACK (pad_added_handler), &data);
     
     //Create pads
-    data.source_pad = gst_pad_new_from_static_template (&src_factory, "source_pad_2");
-    //data.source_pad = gst_pad_new("source_pad", GST_PAD_SRC);
+    data.source_pad = gst_pad_new_from_static_template (&src_factory, "source_pad");
     
     //gst_element_add_pad emits pad_added signal
     if (!gst_element_add_pad (data.source, data.source_pad)) {
