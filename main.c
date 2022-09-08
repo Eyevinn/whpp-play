@@ -24,11 +24,13 @@ typedef struct _CustomData {
     GstElement* fakeSinkElement;
     GstPad *source_pad;
     gchar *sdpOffer;
+    gchar *sdpAnswer;
     gchar *location;
 } CustomData;
 CustomData data;
 
 static void pad_added_handler (GstElement *src, GstPad *pad, CustomData *data);
+static void onAnswerCreatedCallback(GstPromise* promise);
 
 static void handleSDPs () {
 
@@ -40,31 +42,36 @@ static void handleSDPs () {
     GstWebRTCSessionDescription* offerDesc;
     GstWebRTCSessionDescription* answerDesc;
 
-        if (gst_sdp_message_new_from_text (data.sdpOffer, &offerMessage) != GST_SDP_OK)
+    if (gst_sdp_message_new_from_text (data.sdpOffer, &offerMessage) != GST_SDP_OK)
         {
             g_print("Unable to create SDP object from offer");
         }
 
-        offerDesc = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_OFFER, offerMessage);
+    offerDesc = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_OFFER, offerMessage);
         if (!offerDesc)
         {
              g_print("Unable to create SDP object from offer msg");
         }
-
+ 
     g_signal_emit_by_name (data.webrtc_source, "set-remote-description", offerDesc, NULL);
 
-        if(gst_sdp_message_new (&answerMessage) != GST_SDP_OK)
-        {
-            g_print("Unable to create SDP object from answer");
-        }
+    //Create answer by calling g_signal emit "create answer", receive callback response which contains answer
+    g_print("Promising... ");
+    auto *promise = gst_promise_new_with_change_func(onAnswerCreatedCallback, NULL, NULL);
+    g_print("Create answer... ");
+    g_signal_emit_by_name(data.webrtc_source , "create-answer", NULL, promise);
+    
 
-        answerDesc = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_ANSWER, answerMessage);
+
+/*
+    answerDesc = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_ANSWER, answerMessage);
         if (!answerDesc)
         {
              g_print("Unable to create SDP object from answer msg");
         }
+*/
 
-    g_signal_emit_by_name(data.webrtc_source, "set-local-description", answerDesc, NULL);
+    //g_signal_emit_by_name(data.webrtc_source, "set-local-description", answerDesc, NULL);
 
 }
 
@@ -112,6 +119,12 @@ if (error) {
 
     data.sdpOffer = textoffer;
     data.location = location;
+
+}
+
+static void putAnswer () {
+
+    g_print("empty");
 
 }
 
@@ -173,7 +186,8 @@ int32_t main(int32_t argc, char **argv) {
     }
 
     //Handle SDPs
-    //handleSDPs();
+    handleSDPs();
+
     
     /* Start playing */
     g_print ("Start playing... ");
@@ -233,5 +247,19 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
     
 }
 
+
+//static void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
+static void onAnswerCreatedCallback (GstPromise* promise) {
+
+    auto sdpA;
+    g_print("onAnswerCallback... ");
+    //gststructure reply
+    //Segmentation error - likely faulty pointer
+    const auto reply = gst_promise_get_reply(promise);
+    gst_structure_get(reply, "answer", GST_TYPE_WEBRTC_SESSION_DESCRIPTION, sdpA, NULL);
+   //g_print(sdpA);
+    
+
+}
 
 
