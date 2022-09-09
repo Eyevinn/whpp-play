@@ -63,14 +63,6 @@ static void handleSDPs () {
     g_signal_emit_by_name(data.webrtc_source , "create-answer", NULL, promise);
 
 
-/*
-    answerDesc = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_ANSWER, answerMessage);
-        if (!answerDesc)
-        {
-             g_print("Unable to create SDP object from answer msg");
-        }
-*/
-
     //g_signal_emit_by_name(data.webrtc_source, "set-local-description", answerDesc, NULL);
 
 }
@@ -247,7 +239,6 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
 static void onNegotiationNeededCallback () {
 
     g_print("Negotiation callback... ");
-     //Handle SDPs
     handleSDPs();
 
 }
@@ -269,6 +260,8 @@ void onAnswerCreatedCallback (GstPromise* promise) {
     }
     message = gst_sdp_message_as_text (answerPointer->sdp);
     g_print(message);
+    g_signal_emit_by_name(data.webrtc_source, "set-local-description", answerPointer, NULL);
+
     }
 
 
