@@ -31,6 +31,7 @@ CustomData data;
 
 static void pad_added_handler (GstElement *src, GstPad *pad, CustomData *data);
 static void onAnswerCreatedCallback(GstPromise* promise);
+static void onNegotiationNeededCallback(CustomData *data);
 
 static void handleSDPs () {
 
@@ -57,10 +58,9 @@ static void handleSDPs () {
 
     //Create answer by calling g_signal emit "create answer", receive callback response which contains answer
     g_print("Promising... ");
-    auto *promise = gst_promise_new_with_change_func(onAnswerCreatedCallback, NULL, NULL);
+    GstPromise* promise = gst_promise_new_with_change_func(onAnswerCreatedCallback, NULL, NULL);
     g_print("Create answer... ");
     g_signal_emit_by_name(data.webrtc_source , "create-answer", NULL, promise);
-    
 
 
 /*
@@ -175,6 +175,7 @@ int32_t main(int32_t argc, char **argv) {
     g_print ("Connecting... ");
     //Signals
     g_signal_connect (data.webrtc_source, "pad-added", G_CALLBACK (pad_added_handler), &data);
+    g_signal_connect(data.webrtc_source, "on-negotiation-needed", G_CALLBACK(onNegotiationNeededCallback), &data);
     
     //Create pads
     data.source_pad = gst_pad_new_from_static_template (&src_factory, "source_pad");
@@ -184,10 +185,6 @@ int32_t main(int32_t argc, char **argv) {
         g_print("Failed to add pad to source");
         return 1;
     }
-
-    //Handle SDPs
-    handleSDPs();
-
     
     /* Start playing */
     g_print ("Start playing... ");
@@ -247,19 +244,31 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
     
 }
 
+static void onNegotiationNeededCallback () {
 
-//static void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
-static void onAnswerCreatedCallback (GstPromise* promise) {
-
-    auto sdpA;
-    g_print("onAnswerCallback... ");
-    //gststructure reply
-    //Segmentation error - likely faulty pointer
-    const auto reply = gst_promise_get_reply(promise);
-    gst_structure_get(reply, "answer", GST_TYPE_WEBRTC_SESSION_DESCRIPTION, sdpA, NULL);
-   //g_print(sdpA);
-    
+    g_print("Negotiation callback... ");
+     //Handle SDPs
+    handleSDPs();
 
 }
+
+void onAnswerCreatedCallback (GstPromise* promise) {
+
+    GstWebRTCSessionDescription* answerPointer = NULL;
+    const GstStructure* reply;
+    const gchar* message;
+
+    g_print("onAnswerCallback... ");
+
+    g_assert_cmphex (gst_promise_wait (promise), ==, GST_PROMISE_RESULT_REPLIED);
+    reply = gst_promise_get_reply(promise);
+    gst_structure_get (reply, "answer", GST_TYPE_WEBRTC_SESSION_DESCRIPTION, &answerPointer, NULL);
+    gst_promise_unref (promise);
+    if (answerPointer->sdp) {
+        g_print("Not NULL   ");
+    }
+    message = gst_sdp_message_as_text (answerPointer->sdp);
+    g_print(message);
+    }
 
 
