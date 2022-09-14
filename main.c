@@ -22,16 +22,17 @@ typedef struct _CustomData {
     GstElement* webrtc_source;
     GstElement* pipeline;
     GstElement* fakeSinkElement;
-    GstPad *source_pad;
-    gchar *sdpOffer;
-    gchar *sdpAnswer;
-    gchar *location;
+    GstPad* source_pad;
+    gchar* sdpOffer;
+    gchar* sdpAnswer;
+    gchar* location;
 } CustomData;
 CustomData data;
 
-static void pad_added_handler (GstElement *src, GstPad *pad, CustomData *data);
+static void pad_added_handler (GstElement* src, GstPad *pad, CustomData *data);
 static void onAnswerCreatedCallback(GstPromise* promise);
-static void onNegotiationNeededCallback(CustomData *data);
+static void onRemoteDescSetCallback();
+static void onNegotiationNeededCallback(CustomData* data);
 
 static void handleSDPs () {
 
@@ -53,19 +54,13 @@ static void handleSDPs () {
         {
              g_print("Unable to create SDP object from offer msg");
         }
- 
-    g_signal_emit_by_name (data.webrtc_source, "set-remote-description", offerDesc, NULL);
 
-    //Create answer by calling g_signal emit "create answer", receive callback response which contains answer
-    g_print("Promising... ");
-    GstPromise* promise = gst_promise_new_with_change_func(onAnswerCreatedCallback, NULL, NULL);
-    g_print("Create answer... ");
-    g_signal_emit_by_name(data.webrtc_source , "create-answer", NULL, promise);
-
-
-    //g_signal_emit_by_name(data.webrtc_source, "set-local-description", answerDesc, NULL);
+    //g_print(gst_sdp_message_as_text (offerDesc->sdp));
+    GstPromise* promiseRemote = gst_promise_new_with_change_func (onRemoteDescSetCallback, NULL, NULL);
+    g_signal_emit_by_name (data.webrtc_source, "set-remote-description", offerDesc, promiseRemote);
 
 }
+
 
 static void getPostOffer(){
 
@@ -101,6 +96,10 @@ if (error) {
     textoffer = strtok(content, ":");
     textoffer = strtok(NULL, ",");
     textoffer++;
+
+    if(!textoffer){
+        g_print("No textoffer... !!!  ");
+    }
     textoffer[strlen(textoffer)-1] = 0;
     g_strchomp(textoffer);
 
@@ -114,6 +113,7 @@ if (error) {
 
 }
 
+
 static void putAnswer () {
 
     g_print("empty");
@@ -126,7 +126,7 @@ int32_t main(int32_t argc, char **argv) {
     //Set env
     //Dump graph .dot
     g_setenv("GST_DEBUG_DUMP_DOT_DIR", "/Users/olivershin/Documents/", 0);
-    //setenv("GST_DEBUG", "4", 0);
+    setenv("GST_DEBUG", "3", 0);
     setenv("GST_PLUGIN_PATH","/usr/local/lib/gstreamer-1.0", 0);
     getPostOffer();
     //g_print("%s", data.sdpOffer);
@@ -204,7 +204,6 @@ int32_t main(int32_t argc, char **argv) {
 
 }
 
-
 static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data) {
     
   g_print("pad handler callback... ");
@@ -238,29 +237,71 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
 
 static void onNegotiationNeededCallback () {
 
-    g_print("Negotiation callback... ");
+    g_print("Negotiation needed callback... ");
     handleSDPs();
+
+}
+
+static void onRemoteDescSetCallback(GstPromise* promise) {
+
+    g_print("Set Remote description callback triggered... ");
+    //Create answer by calling g_signal emit "create answer", receive callback response which contains answer
+    g_assert_cmphex (gst_promise_wait (promise), ==, GST_PROMISE_RESULT_REPLIED);
+
+    GstWebRTCSessionDescription* current;
+    current = data.webrtc_source;
+
+    gst_promise_unref(promise);
+    
+    g_print("Promising... ");
+    GstPromise* promiseAnswer = gst_promise_new_with_change_func(onAnswerCreatedCallback, NULL, NULL);
+    g_print("Create answer... ");
+    g_signal_emit_by_name(data.webrtc_source , "create-answer", NULL, promiseAnswer);
 
 }
 
 void onAnswerCreatedCallback (GstPromise* promise) {
 
     GstWebRTCSessionDescription* answerPointer = NULL;
+    GstWebRTCSessionDescription* remote = NULL;
     const GstStructure* reply;
     const gchar* message;
 
+
     g_print("onAnswerCallback... ");
+    g_object_get (data.webrtc_source, "remote-description", &remote, NULL);
+    if(!remote->sdp){
+        g_print("ERROR: remote sdp not set  ");
+    }
+
+    else {
+        message = gst_sdp_message_as_text (remote->sdp);
+        g_print("%s", message);
+    }
+
+   
+
+    
+    /*
 
     g_assert_cmphex (gst_promise_wait (promise), ==, GST_PROMISE_RESULT_REPLIED);
+    //reply struct has no member answer
     reply = gst_promise_get_reply(promise);
+
+    gst_promise_unref(promise);
+    //gst_structure_to_string (reply);
+
     gst_structure_get (reply, "answer", GST_TYPE_WEBRTC_SESSION_DESCRIPTION, &answerPointer, NULL);
-    gst_promise_unref (promise);
-    if (answerPointer->sdp) {
-        g_print("Not NULL   ");
+    if (!answerPointer->sdp) {
+        g_print("ERROR: No answer sdp!   ");
     }
+    
     message = gst_sdp_message_as_text (answerPointer->sdp);
-    g_print(message);
+    g_print("%s", message);
     g_signal_emit_by_name(data.webrtc_source, "set-local-description", answerPointer, NULL);
+    
+
+    */
 
     }
 
