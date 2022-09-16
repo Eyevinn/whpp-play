@@ -80,7 +80,6 @@ if (error) {
         g_object_unref (session);
     }
 
-
     location = soup_message_headers_get_one (msg->response_headers, "location");
     nlohmann::json responseJson = nlohmann::json::parse(msg->response_body->data);
     data.sdpOffer = responseJson["offer"].get<std::string>();

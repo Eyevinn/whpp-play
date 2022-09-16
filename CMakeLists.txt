@@ -8,12 +8,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-ggdb -O3 -DNDEBUG -Wall -Werror -Wuninitialized -W
 
 if (APPLE)
         message("OSX")
-        set(ENV{PKG_CONFIG_PATH} "/usr/local/Cellar/icu4c/71.1/lib/pkgconfig")
-        set(LDFLAGS="-L/usr/local/opt/libsoup@2/lib -lsoup-2.4")
-        set(SOUP_INCLUDE_DIRS "/usr/local/opt/libsoup@2/include/libsoup-2.4")
-
-else()
-        pkg_check_modules(SOUP REQUIRED libsoup-2.4)
+        set(ENV{PKG_CONFIG_PATH} "/usr/local/Cellar/icu4c/71.1/lib/pkgconfig:/usr/local/Cellar/libsoup@2/2.74.2_1/lib/pkgconfig")
         
 endif()
 
@@ -22,6 +17,7 @@ pkg_search_module(GLIB REQUIRED glib-2.0)
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0)
 pkg_check_modules(GSTREAMER_WEBRTC REQUIRED gstreamer-webrtc-1.0)
 pkg_check_modules(GSTREAMER_SDP REQUIRED gstreamer-sdp-1.0)
+pkg_check_modules(SOUP REQUIRED libsoup-2.4)
 
 set(FILES
         main.cpp
