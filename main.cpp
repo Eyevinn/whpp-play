@@ -63,10 +63,7 @@ static void handleSDPs () {
 
 }
 
-
 static void getPostOffer(){
-
-    //const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm"; 
 
     SoupSession* session = soup_session_new ();
     const char* location;
@@ -101,7 +98,7 @@ static void putAnswer() {
 
     GError* error = NULL;
 
-    soup_message_set_request (msg , "application/whpp+json", SOUP_MEMORY_TAKE, req_body, sizeof(req_body));
+    soup_message_set_request (msg , "application/json", SOUP_MEMORY_TAKE, req_body, sizeof(req_body));
    
     if (error) {
         g_printerr ("Failed put generation: %s\n", error->message);
@@ -205,7 +202,6 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
   g_print("pad handler callback... ");
   GstPad *sink_pad = gst_element_get_static_pad (data->fakeSinkElement, "sink");
   GstPadLinkReturn ret;
-  //GstStructure *new_pad_struct;
     
   g_print ("Received new pad '%s' from '%s':\n", GST_PAD_NAME (new_pad), GST_ELEMENT_NAME (src));
 
@@ -213,8 +209,7 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
   if (gst_pad_can_link (new_pad, sink_pad)) {
         g_print("Compatible pads... ");
     }
-    
-  //ret = gst_pad_link (new_pad, sink_pad);
+
   ret = static_cast<GstPadLinkReturn>(gst_element_link_pads(data->webrtc_source, GST_PAD_NAME (new_pad), data->fakeSinkElement, GST_PAD_NAME (sink_pad)));
   if (GST_PAD_LINK_FAILED (ret)) {
     g_print ("Link failed.\n");
@@ -234,7 +229,6 @@ static void onNegotiationNeededCallback (gpointer userData) {
 static void onRemoteDescSetCallback(GstPromise* promise, gpointer userData) {
 
     g_print("Set Remote description callback triggered... ");
-    //Create answer by calling g_signal emit "create answer", receive callback response which contains answer
     g_assert_cmphex (gst_promise_wait (promise), ==, GST_PROMISE_RESULT_REPLIED);
     gst_promise_unref(promise);
     
