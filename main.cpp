@@ -30,6 +30,8 @@ typedef struct _CustomData {
 } CustomData;
 CustomData data;
 
+const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
+
 static void pad_added_handler (GstElement* src, GstPad* pad, CustomData* data);
 static void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
 static void onRemoteDescSetCallback(GstPromise* promise, gpointer userData);
@@ -64,7 +66,7 @@ static void handleSDPs () {
 
 static void getPostOffer(){
 
-    const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm"; 
+    //const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm"; 
 
     SoupSession* session = soup_session_new ();
     const char* location;
@@ -85,13 +87,37 @@ if (error) {
     data.sdpOffer = responseJson["offer"].get<std::string>();
     data.location = location;
 
-
     //Cleanup
     g_object_unref (msg);
     g_object_unref (session);
 
 }
 
+static void putAnswer() {
+
+    SoupSession* session = soup_session_new ();
+    SoupMessage* msg = soup_message_new (SOUP_METHOD_PUT, url);
+    const char* req_body = data.sdpAnswer.c_str();
+
+    GError* error = NULL;
+
+    soup_message_set_request (msg , "application/whpp+json", SOUP_MEMORY_TAKE, req_body, sizeof(req_body));
+   
+    if (error) {
+        g_printerr ("Failed put generation: %s\n", error->message);
+        g_error_free (error);
+        g_object_unref (msg);
+        g_object_unref (session);
+    }
+
+    soup_session_send_message(session, msg);
+    g_print("%i", msg->status_code);
+
+    //Cleanup
+    g_object_unref (msg);
+    g_object_unref (session);
+
+}
 
 int32_t main(int32_t argc, char **argv) {
 
@@ -101,8 +127,6 @@ int32_t main(int32_t argc, char **argv) {
     //setenv("GST_DEBUG", "6", 0);
     setenv("GST_PLUGIN_PATH","/usr/local/lib/gstreamer-1.0", 0);
     getPostOffer();
-    //g_print("%s", data.sdpOffer);
-    //g_print("%s", data.location);
 
     gst_init(NULL, NULL);
     GMainLoop* mainLoop;
@@ -214,24 +238,6 @@ static void onRemoteDescSetCallback(GstPromise* promise, gpointer userData) {
     g_assert_cmphex (gst_promise_wait (promise), ==, GST_PROMISE_RESULT_REPLIED);
     gst_promise_unref(promise);
     
-
-    /*TEST print remote sdp*/
-    
-    const gchar* message;
-    GstWebRTCSessionDescription* remote = NULL;
-
-    g_object_get (data.webrtc_source, "remote-description", &remote, NULL);
-    if(!remote->sdp){
-        g_print("ERROR: remote sdp not set  ");
-    }
-    
-    else {
-        message = gst_sdp_message_as_text (remote->sdp);
-        g_print("%s", message);
-    }
-    
-
-
     g_print("Promising... ");
     GstPromise* promiseAnswer = gst_promise_new_with_change_func(onAnswerCreatedCallback, NULL, NULL);
     g_print("Create answer... ");
@@ -242,29 +248,24 @@ static void onRemoteDescSetCallback(GstPromise* promise, gpointer userData) {
 void onAnswerCreatedCallback (GstPromise* promise, gpointer userData) {
 
     GstWebRTCSessionDescription* answerPointer = NULL;
-    //GstWebRTCSessionDescription* remote = NULL;
     const GstStructure* reply;
-    const gchar* message;
 
     g_print("onAnswerCallback... ");
 
     g_assert_cmphex (gst_promise_wait (promise), ==, GST_PROMISE_RESULT_REPLIED);
-    //reply struct has no member answer
     reply = gst_promise_get_reply(promise);
 
     gst_promise_unref(promise);
-    //gst_structure_to_string (reply);
 
     gst_structure_get (reply, "answer", GST_TYPE_WEBRTC_SESSION_DESCRIPTION, &answerPointer, NULL);
     if (!answerPointer->sdp) {
         g_print("ERROR: No answer sdp!   ");
     }
     
-    message = gst_sdp_message_as_text (answerPointer->sdp);
-    g_print("%s", message);
     g_signal_emit_by_name(data.webrtc_source, "set-local-description", answerPointer, NULL);
+    data.sdpAnswer = gst_sdp_message_as_text (answerPointer->sdp);
+    putAnswer();
     
-
     }
 
 
