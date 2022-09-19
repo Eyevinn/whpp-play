@@ -24,7 +24,7 @@ typedef struct _CustomData {
 } CustomData;
 CustomData data;
 
-const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
+const char* url = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
 
 static void pad_added_handler (GstElement* src, GstPad* pad, CustomData* data);
 static void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
