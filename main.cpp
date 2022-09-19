@@ -30,7 +30,7 @@ typedef struct _CustomData {
 } CustomData;
 CustomData data;
 
-const char url[1024] = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
+const char* url = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
 
 static void pad_added_handler (GstElement* src, GstPad* pad, CustomData* data);
 static void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
@@ -68,7 +68,7 @@ static void getPostOffer(){
     SoupSession* session = soup_session_new ();
     const char* location;
 
-    SoupMessage* msg = soup_message_new (SOUP_METHOD_POST, url);
+    SoupMessage* msg = soup_message_new ("POST", url);
     GError* error = NULL;
     soup_session_send_message(session, msg);
 
@@ -82,6 +82,7 @@ if (error) {
     location = soup_message_headers_get_one (msg->response_headers, "location");
     nlohmann::json responseJson = nlohmann::json::parse(msg->response_body->data);
     data.sdpOffer = responseJson["offer"].get<std::string>();
+    std::string str(location);
     data.location = location;
 
     //Cleanup
@@ -93,12 +94,21 @@ if (error) {
 static void putAnswer() {
 
     SoupSession* session = soup_session_new ();
-    SoupMessage* msg = soup_message_new (SOUP_METHOD_PUT, url);
-    const char* req_body = data.sdpAnswer.c_str();
-
+    SoupMessage* msg = soup_message_new ("PUT", data.location.c_str());
+    if (!msg)
+    {
+        g_print("ERROR creating msg");
+    }
     GError* error = NULL;
+    nlohmann::json req_body = "{}"_json;
+    const char* sdp = data.sdpAnswer.c_str();
 
-    soup_message_set_request (msg , "application/json", SOUP_MEMORY_TAKE, req_body, sizeof(req_body));
+    req_body.push_back(nlohmann::json::object_t::value_type("answer", sdp));
+    //g_print("%s", req_body.dump().c_str());
+    //g_print("%s", data.location.c_str());
+    //g_print("%lu", req_body.dump().length());
+
+    soup_message_set_request (msg , "application/whpp+json", SOUP_MEMORY_COPY, req_body.dump().c_str(), req_body.dump().length());
    
     if (error) {
         g_printerr ("Failed put generation: %s\n", error->message);
@@ -107,12 +117,18 @@ static void putAnswer() {
         g_object_unref (session);
     }
 
-    soup_session_send_message(session, msg);
-    g_print("%i", msg->status_code);
+    auto statusCode = soup_session_send_message(session, msg);
 
     //Cleanup
     g_object_unref (msg);
     g_object_unref (session);
+
+    if (statusCode != 204)
+    {
+        g_print("%s", "ERROR: ");
+    }
+
+    g_print("%i", statusCode);
 
 }
 
