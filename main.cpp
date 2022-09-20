@@ -24,8 +24,10 @@ GST_STATIC_PAD_TEMPLATE (
 typedef struct _CustomData {
     GstElement* webrtc_source;
     GstElement* pipeline;
-    GstElement* fakeSinkElement;
-    GstElement* autoSinkElement;
+    //GstElement* fakeSinkElement;
+    GstElement* rtp_depay_vp8;
+    GstElement* vp8_decoder;
+    GstElement* sinkElement;
     //GstPad* source_pad;
     std::string sdpOffer;
     std::string sdpAnswer;
@@ -137,7 +139,7 @@ int32_t main(int32_t argc, char **argv) {
     //Set env
     //Dump graph .dot
     g_setenv("GST_DEBUG_DUMP_DOT_DIR", "/Users/olivershin/Documents/", 0);
-    //setenv("GST_DEBUG", "6", 0);
+    //setenv("GST_DEBUG", "5", 0);
     setenv("GST_PLUGIN_PATH","/usr/local/lib/gstreamer-1.0", 0);
     getPostOffer();
 
@@ -151,15 +153,29 @@ int32_t main(int32_t argc, char **argv) {
         return 1;
     }   
     
+    /*
     data.fakeSinkElement = gst_element_factory_make ("fakesink", "sink");
     if (!data.fakeSinkElement) {
-        g_print("Failed to make element sink");
+        g_print("Failed to make element fake sink");
+        return 1;
+    }
+    */
+    
+    data.sinkElement = gst_element_factory_make ("glimagesink", "gli_sink");
+    if (!data.sinkElement) {
+        g_print("Failed to make element gli sink");
         return 1;
     }
 
-    data.autoSinkElement = gst_element_factory_make ("autovideosink", "autosink");
-     if (!data.autoSinkElement) {
-        g_print("Failed to make element auto sink");
+    data.rtp_depay_vp8 = gst_element_factory_make ("rtpvp8depay", "rtp_depayloader_vp8");
+    if (!data.rtp_depay_vp8) {
+        g_print("Failed to make element rtp depayloader");
+        return 1;
+    }
+
+    data.vp8_decoder = gst_element_factory_make ("vp8dec", "vp8_decoder");
+    if (!data.vp8_decoder) {
+        g_print("Failed to make element vp8 decoder");
         return 1;
     }
   
@@ -174,16 +190,29 @@ int32_t main(int32_t argc, char **argv) {
         return 1;
     }
 
+/*
     if (!gst_bin_add(GST_BIN(data.pipeline), data.fakeSinkElement)) {
         g_print("Failed to add element sink");
         return 1;
     }
-/*
-    if (!gst_bin_add(GST_BIN(data.pipeline), data.autoSinkElement)) {
-        g_print("Failed to add element auto sink");
+*/
+
+    if (!gst_bin_add(GST_BIN(data.pipeline), data.rtp_depay_vp8)) {
+        g_print("Failed to add element rtp depayloader");
         return 1;
     }
-    */
+
+    if (!gst_bin_add(GST_BIN(data.pipeline), data.vp8_decoder)) {
+        g_print("Failed to add element decoder");
+        return 1;
+    }
+
+
+    if (!gst_bin_add(GST_BIN(data.pipeline), data.sinkElement)) {
+        g_print("Failed to add element sink");
+        return 1;
+    }
+
 
     g_print ("Connecting... ");
     //Signals
@@ -235,6 +264,10 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
         
     g_print ("Received new pad '%s' from '%s':\n", GST_PAD_NAME (new_pad), GST_ELEMENT_NAME (src));
 
+    if (!gst_element_link_many(src, data->rtp_depay_vp8, data->vp8_decoder, data->sinkElement, nullptr)) {
+            printf("Failed to link source to sink\n");
+    }
+
     /* Attempt the link */
     /*
     if (gst_pad_can_link (new_pad, sink_pad)) {
@@ -249,11 +282,17 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
     }
     */
 
+   /*
     if (!gst_element_link_many(src, data->fakeSinkElement, nullptr)) {
             printf("Failed to link source to sink\n");
         }
+    */
+
+
 
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(data->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
+
+    
 
     
 }
