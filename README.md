@@ -18,16 +18,16 @@ cmake -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" .
 make
 ```
 
-Debug
+## Debug
 
-Before gst init add to generate .dot graph
+Before gst init add the following to generate .dot graph
 
 ```
 g_setenv("GST_DEBUG_DUMP_DOT_DIR", "YOUR/TARGET/DIR", 0);
 setenv("GST_DEBUG", "4", 0);
-´´´
+```
 
 Generate png from .dot
 ```
 dot -Tpng input.dot > output.png
-´´´
+```

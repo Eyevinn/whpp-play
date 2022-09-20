@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <iostream>
 #include <libsoup/soup.h>
 #include "nlohmann/json.hpp"
 
@@ -19,10 +20,11 @@ typedef struct _CustomData {
     std::string sdpOffer;
     std::string sdpAnswer;
     std::string location;
+    std::string whppURL;
 } CustomData;
 CustomData data;
 
-const char* url = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
+//const char* url = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
 
 static void pad_added_handler (GstElement* src, GstPad* pad, CustomData* data);
 static void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
@@ -60,7 +62,12 @@ static void getPostOffer(){
     SoupSession* session = soup_session_new ();
     const char* location;
 
-    SoupMessage* msg = soup_message_new ("POST", url);
+    g_print("%s", data.whppURL.c_str());
+    SoupMessage* msg = soup_message_new ("POST", data.whppURL.c_str());
+    if(!msg){
+        g_print("ERROR: NULL msg in getPostOffer()");
+        exit (EXIT_FAILURE);
+    }
     GError* error = NULL;
     soup_session_send_message(session, msg);
 
@@ -89,7 +96,8 @@ static void putAnswer() {
     SoupMessage* msg = soup_message_new ("PUT", data.location.c_str());
     if (!msg)
     {
-        g_print("ERROR creating msg");
+        g_print("ERROR: when creating msg in putAnswer()");
+        exit (EXIT_FAILURE);
     }
     GError* error = NULL;
     nlohmann::json req_body = "{}"_json;
@@ -117,7 +125,19 @@ static void putAnswer() {
         g_print("%s", "ERROR: ");
     }
 
-    g_print("%i", statusCode);
+    g_print("%i ", statusCode);
+
+}
+
+static void receiveUserInput() {
+
+    g_print("Enter WHPP stream URL:\n");
+
+    std::string whppURL;
+    std::cin >> whppURL;
+    data.whppURL = whppURL;
+
+    g_print("\nStarting... ");
 
 }
 
@@ -128,6 +148,7 @@ int32_t main(int32_t argc, char **argv) {
     //setenv("GST_DEBUG", "5", 0);
     setenv("GST_PLUGIN_PATH","/usr/local/lib/gstreamer-1.0", 0);
 
+    receiveUserInput();
     getPostOffer();
 
     gst_init(NULL, NULL);
@@ -192,7 +213,7 @@ int32_t main(int32_t argc, char **argv) {
     g_signal_connect (data.webrtc_source, "pad-added", G_CALLBACK (pad_added_handler), &data);
     g_signal_connect(data.webrtc_source, "on-negotiation-needed", G_CALLBACK(onNegotiationNeededCallback), &data);
     
-    /* Start playing */
+    //Start playing
     g_print ("Start playing... ");
     if (gst_element_set_state(data.pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
             printf("Unable to set the pipeline to the playing state.\n");
@@ -202,11 +223,11 @@ int32_t main(int32_t argc, char **argv) {
     g_print ("main loop... ");
     mainLoop = g_main_loop_new(NULL, FALSE);
 
-    // Will loop forever
+    //Will loop forever
     g_print ("Looping... ");
     g_main_loop_run(mainLoop);
     
-   /* Free resources */
+    //Free resources 
     g_main_loop_unref(mainLoop);
     gst_element_set_state (data.pipeline, GST_STATE_NULL);
     gst_object_unref (data.pipeline);
