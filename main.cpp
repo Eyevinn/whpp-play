@@ -10,25 +10,12 @@
 #include <libsoup/soup.h>
 #include "nlohmann/json.hpp"
 
-
-/*
-static GstStaticPadTemplate src_factory =
-GST_STATIC_PAD_TEMPLATE (
-  "src_%u",
-  GST_PAD_SRC,
-  GST_PAD_SOMETIMES,
-  GST_STATIC_CAPS ("ANY")
-);
-*/
-
 typedef struct _CustomData {
     GstElement* webrtc_source;
     GstElement* pipeline;
-    //GstElement* fakeSinkElement;
     GstElement* rtp_depay_vp8;
     GstElement* vp8_decoder;
     GstElement* sinkElement;
-    //GstPad* source_pad;
     std::string sdpOffer;
     std::string sdpAnswer;
     std::string location;
@@ -136,11 +123,11 @@ static void putAnswer() {
 
 int32_t main(int32_t argc, char **argv) {
 
-    //Set env
     //Dump graph .dot
     g_setenv("GST_DEBUG_DUMP_DOT_DIR", "/Users/olivershin/Documents/", 0);
     //setenv("GST_DEBUG", "5", 0);
     setenv("GST_PLUGIN_PATH","/usr/local/lib/gstreamer-1.0", 0);
+
     getPostOffer();
 
     gst_init(NULL, NULL);
@@ -152,14 +139,6 @@ int32_t main(int32_t argc, char **argv) {
         g_print("Failed to make element source");
         return 1;
     }   
-    
-    /*
-    data.fakeSinkElement = gst_element_factory_make ("fakesink", "sink");
-    if (!data.fakeSinkElement) {
-        g_print("Failed to make element fake sink");
-        return 1;
-    }
-    */
     
     data.sinkElement = gst_element_factory_make ("glimagesink", "gli_sink");
     if (!data.sinkElement) {
@@ -185,17 +164,11 @@ int32_t main(int32_t argc, char **argv) {
         return 1;
     }
 
+    //Add elements
     if (!gst_bin_add(GST_BIN(data.pipeline), data.webrtc_source)){
         g_print("Failed to add element source");
         return 1;
     }
-
-/*
-    if (!gst_bin_add(GST_BIN(data.pipeline), data.fakeSinkElement)) {
-        g_print("Failed to add element sink");
-        return 1;
-    }
-*/
 
     if (!gst_bin_add(GST_BIN(data.pipeline), data.rtp_depay_vp8)) {
         g_print("Failed to add element rtp depayloader");
@@ -219,17 +192,6 @@ int32_t main(int32_t argc, char **argv) {
     g_signal_connect (data.webrtc_source, "pad-added", G_CALLBACK (pad_added_handler), &data);
     g_signal_connect(data.webrtc_source, "on-negotiation-needed", G_CALLBACK(onNegotiationNeededCallback), &data);
     
-    //Create pads
-    //data.source_pad = gst_pad_new_from_static_template (&src_factory, "source_pad");
-    
-    //gst_element_add_pad emits pad_added signal
-    /*
-    if (!gst_element_add_pad (data.webrtc_source, data.source_pad)) {
-        g_print("Failed to add pad to source");
-        return 1;
-    }
-    */
-    
     /* Start playing */
     g_print ("Start playing... ");
     if (gst_element_set_state(data.pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
@@ -239,8 +201,6 @@ int32_t main(int32_t argc, char **argv) {
 
     g_print ("main loop... ");
     mainLoop = g_main_loop_new(NULL, FALSE);
-    //TO EXPORT RUN IN TERMINAL//dot -Tpng pipeline.dot -o graf.png
-    //GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(data.pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
 
     // Will loop forever
     g_print ("Looping... ");
@@ -259,8 +219,6 @@ int32_t main(int32_t argc, char **argv) {
 static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data) {
     
     g_print("pad handler callback... ");
-    //GstPad *sink_pad = gst_element_get_static_pad (data->fakeSinkElement, "sink");
-    //GstPadLinkReturn ret;
         
     g_print ("Received new pad '%s' from '%s':\n", GST_PAD_NAME (new_pad), GST_ELEMENT_NAME (src));
 
@@ -268,32 +226,8 @@ static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *dat
             printf("Failed to link source to sink\n");
     }
 
-    /* Attempt the link */
-    /*
-    if (gst_pad_can_link (new_pad, sink_pad)) {
-            g_print("Compatible pads... ");
-        }
-
-    ret = static_cast<GstPadLinkReturn>(gst_element_link_pads(src, GST_PAD_NAME (new_pad), data->fakeSinkElement, GST_PAD_NAME (sink_pad)));
-    if (GST_PAD_LINK_FAILED (ret)) {
-        g_print ("Link failed.\n");
-    } else {
-        g_print ("Pad link succeeded.\n");
-    }
-    */
-
-   /*
-    if (!gst_element_link_many(src, data->fakeSinkElement, nullptr)) {
-            printf("Failed to link source to sink\n");
-        }
-    */
-
-
 
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(data->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
-
-    
-
     
 }
 
