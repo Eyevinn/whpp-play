@@ -1,11 +1,12 @@
-# whpp-play
+# Player for WebRTC HTTP Playback Protocol
+
+Video player for WebRTC streams using WHPP as SDP exchange protocol
 
 ## OSX
 
 Requirements:
 - XCode command line tools installs
 - Install additional dependencies using homebrew
-- setenv("GST_PLUGIN_PATH","PATH/TO/LIBS",0);
 
 ```
 brew install gstreamer gst-plugins-good gst-plugins-bad libsoup@2 icu4c cmake gst-libav
@@ -26,11 +27,13 @@ GST_PLUGIN_PATH=/opt/homebrew/lib/gstreamer-1.0 ./whpp-play <WHPP URL>
 
 ## Debug
 
-Before gst init add the following to generate .dot graph
+Run with the following environment variables set:
 
 ```
-g_setenv("GST_DEBUG_DUMP_DOT_DIR", "YOUR/TARGET/DIR", 0);
-setenv("GST_DEBUG", "4", 0);
+GST_DEBUG_DUMP_DOT_DIR=<target-dir> \
+GST_DEBUG=4 \
+GST_PLUGIN_PATH=/opt/homebrew/lib/gstreamer-1.0 \
+./whpp-play <WHPP URL>
 ```
 
 Generate png from .dot
