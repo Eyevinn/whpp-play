@@ -134,7 +134,7 @@ int32_t main(int32_t argc, char **argv) {
     //Dump graph .dot
     g_setenv("GST_DEBUG_DUMP_DOT_DIR", "/Users/olivershin/Documents/", 0);
     //setenv("GST_DEBUG", "5", 0);
-    setenv("GST_PLUGIN_PATH","/usr/local/lib/gstreamer-1.0", 0);
+    //setenv("GST_PLUGIN_PATH","/usr/local/lib/gstreamer-1.0", 0);
 
     if (argc < 2) { 
         g_print("Usage: ./whpp-play WHPP-URL\n");
