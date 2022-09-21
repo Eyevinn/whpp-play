@@ -136,7 +136,7 @@ int32_t main(int32_t argc, char **argv) {
     //setenv("GST_DEBUG", "5", 0);
     setenv("GST_PLUGIN_PATH","/usr/local/lib/gstreamer-1.0", 0);
 
-    if (argc < 1) { 
+    if (argc < 2) { 
         g_print("Usage: ./whpp-play WHPP-URL\n");
         return 1;
     }
