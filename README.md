@@ -8,7 +8,7 @@ Requirements:
 - setenv("GST_PLUGIN_PATH","PATH/TO/LIBS",0);
 
 ```
-brew install gstreamer gst-plugins-good gst-plugins-bad libsoup icu4c cmake gst-libav
+brew install gstreamer gst-plugins-good gst-plugins-bad libsoup@2 icu4c cmake gst-libav
 ```
 
 Build:
