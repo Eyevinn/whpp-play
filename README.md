@@ -18,6 +18,12 @@ cmake -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" .
 make
 ```
 
+Run:
+
+```
+GST_PLUGIN_PATH=/opt/homebrew/lib/gstreamer-1.0 ./whpp-play <WHPP URL>
+```
+
 ## Debug
 
 Before gst init add the following to generate .dot graph
