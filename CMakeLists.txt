@@ -10,6 +10,7 @@ if (APPLE)
         message("OSX")
         set(ENV{PKG_CONFIG_PATH} "/usr/local/Cellar/icu4c/71.1/lib/pkgconfig:/usr/local/Cellar/libsoup@2/2.74.2_1/lib/pkgconfig:/opt/homebrew/opt/libsoup@2/lib/pkgconfig:/opt/homebrew/opt/icu4c/lib/pkgconfig/")
         
+
 endif()
 
 find_package(PkgConfig)

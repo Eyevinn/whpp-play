@@ -24,8 +24,6 @@ typedef struct _CustomData {
 } CustomData;
 CustomData data;
 
-//const char* url = "https://broadcaster.lab.sto.eyevinn.technology:8443/broadcaster/channel/sthlm";
-
 static void pad_added_handler (GstElement* src, GstPad* pad, CustomData* data);
 static void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
 static void onRemoteDescSetCallback(GstPromise* promise, gpointer userData);
@@ -33,23 +31,19 @@ static void onNegotiationNeededCallback(gpointer userData);
 
 static void handleSDPs () {
 
-    //Set remote description as received sdp offer
-    g_print("Handling SDPs... ");
-
     GstSDPMessage* offerMessage;
     GstWebRTCSessionDescription* offerDesc;
 
     if (gst_sdp_message_new_from_text (data.sdpOffer.c_str(), &offerMessage) != GST_SDP_OK)
         {
-            g_print("Unable to create SDP object from offer");
+            g_print("Unable to create SDP object from offer\n");
         }
 
     offerDesc = gst_webrtc_session_description_new (GST_WEBRTC_SDP_TYPE_OFFER, offerMessage);
         if (!offerDesc)
         {
-            g_print("Unable to create SDP object from offer msg");
+            g_print("Unable to create SDP object from offer msg\n");
         }
-
 
     GstPromise* promiseRemote = gst_promise_new_with_change_func (onRemoteDescSetCallback, NULL, NULL);
     g_assert_nonnull (data.webrtc_source);
@@ -62,7 +56,6 @@ static void getPostOffer(){
     SoupSession* session = soup_session_new ();
     const char* location;
 
-    g_print("%s\n", data.whppURL.c_str());
     SoupMessage* msg = soup_message_new ("POST", data.whppURL.c_str());
     if(!msg){
         g_print("ERROR: NULL msg in getPostOffer()\n");
@@ -131,11 +124,6 @@ static void putAnswer() {
 
 int32_t main(int32_t argc, char **argv) {
 
-    //Dump graph .dot
-    g_setenv("GST_DEBUG_DUMP_DOT_DIR", "/Users/olivershin/Documents/", 0);
-    //setenv("GST_DEBUG", "5", 0);
-    //setenv("GST_PLUGIN_PATH","/usr/local/lib/gstreamer-1.0", 0);
-
     if (argc < 2) { 
         g_print("Usage: ./whpp-play WHPP-URL\n");
         return 1;
@@ -199,8 +187,6 @@ int32_t main(int32_t argc, char **argv) {
         return 1;
     }
 
-
-    g_print ("Connecting...\n");
     //Signals
     g_signal_connect (data.webrtc_source, "pad-added", G_CALLBACK (pad_added_handler), &data);
     g_signal_connect(data.webrtc_source, "on-negotiation-needed", G_CALLBACK(onNegotiationNeededCallback), &data);
@@ -230,36 +216,26 @@ int32_t main(int32_t argc, char **argv) {
 }
 
 static void pad_added_handler (GstElement *src, GstPad *new_pad, CustomData *data) {
-    
-    g_print("pad handler callback...\n");
         
-    g_print ("Received new pad '%s' from '%s':\n", GST_PAD_NAME (new_pad), GST_ELEMENT_NAME (src));
+    g_print ("Received new pad '%s' from '%s'\n", GST_PAD_NAME (new_pad), GST_ELEMENT_NAME (src));
 
     if (!gst_element_link_many(src, data->rtp_depay_vp8, data->vp8_decoder, data->sinkElement, nullptr)) {
             printf("Failed to link source to sink\n");
     }
-
-
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(data->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
-    
 }
 
 static void onNegotiationNeededCallback (gpointer userData) {
 
-    g_print("Negotiation needed callback...\n");
     handleSDPs();
 
 }
 
 static void onRemoteDescSetCallback(GstPromise* promise, gpointer userData) {
 
-    g_print("Set Remote description callback triggered...\n");
     g_assert_cmphex (gst_promise_wait (promise), ==, GST_PROMISE_RESULT_REPLIED);
     gst_promise_unref(promise);
     
-    g_print("Promising...\n");
     GstPromise* promiseAnswer = gst_promise_new_with_change_func(onAnswerCreatedCallback, NULL, NULL);
-    g_print("Create answer...\n");
     g_signal_emit_by_name(data.webrtc_source , "create-answer", NULL, promiseAnswer);
 
 }
@@ -268,8 +244,6 @@ void onAnswerCreatedCallback (GstPromise* promise, gpointer userData) {
 
     GstWebRTCSessionDescription* answerPointer = NULL;
     const GstStructure* reply;
-
-    g_print("onAnswerCallback...\n");
 
     g_assert_cmphex (gst_promise_wait (promise), ==, GST_PROMISE_RESULT_REPLIED);
     reply = gst_promise_get_reply(promise);
@@ -285,6 +259,6 @@ void onAnswerCreatedCallback (GstPromise* promise, gpointer userData) {
     data.sdpAnswer = gst_sdp_message_as_text (answerPointer->sdp);
     putAnswer();
     
-    }
+}
 
 
