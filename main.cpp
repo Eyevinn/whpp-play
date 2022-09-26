@@ -24,7 +24,7 @@ typedef struct _CustomData {
 } CustomData;
 CustomData data;
 
-void pad_added_handler(GstElement* src, GstPad* pad, CustomData* data);
+void padAddedHandler(GstElement* src, GstPad* pad, CustomData* data);
 void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
 void onRemoteDescSetCallback(GstPromise* promise, gpointer userData);
 void onNegotiationNeededCallback(gpointer userData);
@@ -53,11 +53,10 @@ void getPostOffer()
 {
 
     SoupSession* session = soup_session_new();
-    const char* location;
 
     SoupMessage* msg = soup_message_new("POST", data.whppURL.c_str());
     if (!msg) {
-        printf("ERROR: nullptr msg in getPostOffer()\n");
+        printf("ERROR: NULL msg in getPostOffer()\n");
         exit(EXIT_FAILURE);
     }
     GError* error = nullptr;
@@ -70,7 +69,7 @@ void getPostOffer()
         g_object_unref(session);
     }
 
-    location = soup_message_headers_get_one(msg->response_headers, "location");
+    const char* location = soup_message_headers_get_one(msg->response_headers, "location");
     nlohmann::json responseJson = nlohmann::json::parse(msg->response_body->data);
     data.sdpOffer = responseJson["offer"].get<std::string>();
     std::string str(location);
@@ -128,7 +127,6 @@ int32_t main(int32_t argc, char** argv)
     getPostOffer();
 
     gst_init(nullptr, nullptr);
-    GMainLoop* mainLoop;
 
     // Make elements
     data.webrtc_source = gst_element_factory_make("webrtcbin", "source");
@@ -139,23 +137,23 @@ int32_t main(int32_t argc, char** argv)
 
     data.sinkElement = gst_element_factory_make("glimagesink", "gli_sink");
     if (!data.sinkElement) {
-        printf("Failed to make element gli sink\n");
+        printf("Failed to make element gli_sink\n");
         return 1;
     }
 
     data.rtp_depay_vp8 = gst_element_factory_make("rtpvp8depay", "rtp_depayloader_vp8");
     if (!data.rtp_depay_vp8) {
-        printf("Failed to make element rtp depayloader\n");
+        printf("Failed to make element rtp_depayloader_vp8\n");
         return 1;
     }
 
     data.vp8_decoder = gst_element_factory_make("vp8dec", "vp8_decoder");
     if (!data.vp8_decoder) {
-        printf("Failed to make element vp8 decoder\n");
+        printf("Failed to make element vp8_decoder\n");
         return 1;
     }
 
-    data.pipeline = gst_pipeline_new("test-pipeline");
+    data.pipeline = gst_pipeline_new("pipeline");
     if (!data.pipeline) {
         printf("Failed to make element pipeline\n");
         return 1;
@@ -168,22 +166,22 @@ int32_t main(int32_t argc, char** argv)
     }
 
     if (!gst_bin_add(GST_BIN(data.pipeline), data.rtp_depay_vp8)) {
-        printf("Failed to add element rtp depayloader\n");
+        printf("Failed to add element rtp_depayloader_vp8\n");
         return 1;
     }
 
     if (!gst_bin_add(GST_BIN(data.pipeline), data.vp8_decoder)) {
-        printf("Failed to add element decoder\n");
+        printf("Failed to add element vp8_decoder\n");
         return 1;
     }
 
     if (!gst_bin_add(GST_BIN(data.pipeline), data.sinkElement)) {
-        printf("Failed to add element sink\n");
+        printf("Failed to add element gli_sink\n");
         return 1;
     }
 
     // Signals
-    g_signal_connect(data.webrtc_source, "pad-added", G_CALLBACK(pad_added_handler), &data);
+    g_signal_connect(data.webrtc_source, "pad-added", G_CALLBACK(padAddedHandler), &data);
     g_signal_connect(data.webrtc_source, "on-negotiation-needed", G_CALLBACK(onNegotiationNeededCallback), &data);
 
     // Start playing
@@ -193,11 +191,8 @@ int32_t main(int32_t argc, char** argv)
         return 1;
     }
 
-    printf("main loop...\n");
-    mainLoop = g_main_loop_new(nullptr, FALSE);
-
-    // Will loop forever
     printf("Looping...\n");
+    GMainLoop* mainLoop = g_main_loop_new(nullptr, FALSE);
     g_main_loop_run(mainLoop);
 
     // Free resources
@@ -209,7 +204,7 @@ int32_t main(int32_t argc, char** argv)
     return 0;
 }
 
-void pad_added_handler(GstElement* src, GstPad* new_pad, CustomData* data)
+void padAddedHandler(GstElement* src, GstPad* new_pad, CustomData* data)
 {
 
     printf("Received new pad '%s' from '%s'\n", GST_PAD_NAME(new_pad), GST_ELEMENT_NAME(src));
@@ -228,7 +223,10 @@ void onNegotiationNeededCallback(gpointer userData)
 void onRemoteDescSetCallback(GstPromise* promise, gpointer userData)
 {
 
-    g_assert_cmphex(gst_promise_wait(promise), ==, GST_PROMISE_RESULT_REPLIED);
+    if (gst_promise_wait(promise) != GST_PROMISE_RESULT_REPLIED) {
+        printf("onRemoteDescSetCallback: Failed to receive promise reply\n");
+        exit(EXIT_FAILURE);
+    }
     gst_promise_unref(promise);
 
     GstPromise* promiseAnswer = gst_promise_new_with_change_func(onAnswerCreatedCallback, nullptr, nullptr);
@@ -240,14 +238,17 @@ void onAnswerCreatedCallback(GstPromise* promise, gpointer userData)
 
     GstWebRTCSessionDescription* answerPointer = nullptr;
 
-    g_assert_cmphex(gst_promise_wait(promise), ==, GST_PROMISE_RESULT_REPLIED);
+    if (gst_promise_wait(promise) != GST_PROMISE_RESULT_REPLIED) {
+        printf("onAnswerCreatedCallback: Failed to receive promise reply\n");
+        exit(EXIT_FAILURE);
+    }
     const GstStructure* reply = gst_promise_get_reply(promise);
 
     gst_promise_unref(promise);
 
     gst_structure_get(reply, "answer", GST_TYPE_WEBRTC_SESSION_DESCRIPTION, &answerPointer, nullptr);
     if (!answerPointer->sdp) {
-        printf("ERROR: No answer sdp!\n");
+        printf("ERROR: No answer sdp!   \n");
     }
 
     g_signal_emit_by_name(data.webrtc_source, "set-local-description", answerPointer, nullptr);
