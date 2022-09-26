@@ -69,6 +69,7 @@ Join our [community on Slack](http://slack.streamingtech.se) where you can post 
 - Customization and integration of this component into your platform
 - Support and maintenance agreement
 
+Contact [sales@eyevinn.se](mailto:sales@eyevinn.se) if you are interested.
 
 ## About Eyevinn Technology
 
