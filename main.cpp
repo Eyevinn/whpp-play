@@ -21,21 +21,51 @@ typedef struct _CustomData {
     std::string sdpAnswer;
     std::string location;
     std::string whppURL;
+
+    /*
+         _CustomData()
+           {
+                // printf("Constructor executed\n");
+                GstElement* webrtc_source;
+                GstElement* pipeline;
+                GstElement* rtp_depay_vp8;
+                GstElement* vp8_decoder;
+                GstElement* sinkElement;
+                std::string sdpOffer;
+                std::string sdpAnswer;
+                std::string location;
+                std::string whppURL;
+
+           }
+
+           ~_CustomData()
+              {
+                    // printf("Destructor executed\n");
+                    g_object_unref(webrtc_source);
+                    g_object_unref(pipeline);
+                    g_object_unref(rtp_depay_vp8);
+                    g_object_unref(sinkElement);
+                    g_object_unref(sdpOffer);
+                    g_object_unref(sdpAnswer);
+                    g_object_unref(location);
+                    g_object_unref(whppURL);
+              }
+        */
 } CustomData;
-CustomData data;
+//CustomData data;
 
 void padAddedHandler(GstElement* src, GstPad* pad, CustomData* data);
 void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
 void onRemoteDescSetCallback(GstPromise* promise, gpointer userData);
-void onNegotiationNeededCallback(gpointer userData);
+void onNegotiationNeededCallback(GstElement* src, CustomData* data);
 
-void handleSDPs()
+void handleSDPs(CustomData* data)
 {
 
     GstSDPMessage* offerMessage;
     GstWebRTCSessionDescription* offerDesc;
 
-    if (gst_sdp_message_new_from_text(data.sdpOffer.c_str(), &offerMessage) != GST_SDP_OK) {
+    if (gst_sdp_message_new_from_text(data->sdpOffer.c_str(), &offerMessage) != GST_SDP_OK) {
         printf("Unable to create SDP object from offer\n");
     }
 
@@ -44,17 +74,20 @@ void handleSDPs()
         printf("Unable to create SDP object from offer msg\n");
     }
 
-    GstPromise* promiseRemote = gst_promise_new_with_change_func(onRemoteDescSetCallback, nullptr, nullptr);
-    g_assert_nonnull(data.webrtc_source);
-    g_signal_emit_by_name(data.webrtc_source, "set-remote-description", offerDesc, promiseRemote);
+    GstPromise* promiseRemote = gst_promise_new_with_change_func(onRemoteDescSetCallback, data, nullptr);
+    if(!data->webrtc_source) {
+        printf("webrtc_source is NULL\n");
+    }
+
+    g_signal_emit_by_name(data->webrtc_source, "set-remote-description", offerDesc, promiseRemote);
 }
 
-void getPostOffer()
+std::vector<std::string> getPostOffer(CustomData* data)
 {
 
     SoupSession* session = soup_session_new();
 
-    SoupMessage* msg = soup_message_new("POST", data.whppURL.c_str());
+    SoupMessage* msg = soup_message_new("POST", data->whppURL.c_str());
     if (!msg) {
         printf("ERROR: NULL msg in getPostOffer()\n");
         exit(EXIT_FAILURE);
@@ -71,27 +104,31 @@ void getPostOffer()
 
     const char* location = soup_message_headers_get_one(msg->response_headers, "location");
     nlohmann::json responseJson = nlohmann::json::parse(msg->response_body->data);
-    data.sdpOffer = responseJson["offer"].get<std::string>();
-    std::string str(location);
-    data.location = location;
+
+    std::vector<std::string> strVec;
+    strVec.push_back(responseJson["offer"].get<std::string>());
+    strVec.push_back(location);
 
     // Cleanup
     g_object_unref(msg);
     g_object_unref(session);
+
+    return strVec;
+
 }
 
-void putAnswer()
+void putAnswer(CustomData* data)
 {
 
     SoupSession* session = soup_session_new();
-    SoupMessage* msg = soup_message_new("PUT", data.location.c_str());
+    SoupMessage* msg = soup_message_new("PUT", data->location.c_str());
     if (!msg) {
         printf("ERROR: when creating msg in putAnswer()\n");
         exit(EXIT_FAILURE);
     }
     GError* error = nullptr;
     nlohmann::json req_body;
-    const char* sdp = data.sdpAnswer.c_str();
+    const char* sdp = data->sdpAnswer.c_str();
     req_body["answer"] = sdp;
 
     soup_message_set_request(msg, "application/whpp+json", SOUP_MEMORY_COPY, req_body.dump().c_str(), req_body.dump().length());
@@ -123,8 +160,11 @@ int32_t main(int32_t argc, char** argv)
         printf("Usage: ./whpp-play WHPP-URL\n");
         return 1;
     }
+    CustomData data;
     data.whppURL = argv[1];
-    getPostOffer();
+    std::vector<std::string> offerLocation = getPostOffer(&data);
+    data.sdpOffer = offerLocation[0];
+    data.location = offerLocation[1];
 
     gst_init(nullptr, nullptr);
 
@@ -214,14 +254,16 @@ void padAddedHandler(GstElement* src, GstPad* new_pad, CustomData* data)
     }
 }
 
-void onNegotiationNeededCallback(gpointer userData)
+void onNegotiationNeededCallback(GstElement* src, CustomData* data)
 {
 
-    handleSDPs();
+    handleSDPs(data);
 }
 
 void onRemoteDescSetCallback(GstPromise* promise, gpointer userData)
 {
+    auto data =  reinterpret_cast <CustomData*> (userData);
+    printf("onRemoteDescSetCallback: Callback..\n");
 
     if (gst_promise_wait(promise) != GST_PROMISE_RESULT_REPLIED) {
         printf("onRemoteDescSetCallback: Failed to receive promise reply\n");
@@ -229,12 +271,18 @@ void onRemoteDescSetCallback(GstPromise* promise, gpointer userData)
     }
     gst_promise_unref(promise);
 
-    GstPromise* promiseAnswer = gst_promise_new_with_change_func(onAnswerCreatedCallback, nullptr, nullptr);
-    g_signal_emit_by_name(data.webrtc_source, "create-answer", nullptr, promiseAnswer);
+    GstPromise* promiseAnswer = gst_promise_new_with_change_func(onAnswerCreatedCallback, data, nullptr);
+    g_signal_emit_by_name(data->webrtc_source, "create-answer", nullptr, promiseAnswer);
 }
 
 void onAnswerCreatedCallback(GstPromise* promise, gpointer userData)
 {
+
+    printf("answerCallback...   \n");
+    printf("-----   \n");
+    auto data =  reinterpret_cast <CustomData*> (userData);
+    printf("%s\n", data->location.c_str());
+    printf("-----   \n");
 
     GstWebRTCSessionDescription* answerPointer = nullptr;
 
@@ -251,7 +299,7 @@ void onAnswerCreatedCallback(GstPromise* promise, gpointer userData)
         printf("ERROR: No answer sdp!   \n");
     }
 
-    g_signal_emit_by_name(data.webrtc_source, "set-local-description", answerPointer, nullptr);
-    data.sdpAnswer = gst_sdp_message_as_text(answerPointer->sdp);
-    putAnswer();
+    g_signal_emit_by_name(data->webrtc_source, "set-local-description", answerPointer, nullptr);
+    data->sdpAnswer = gst_sdp_message_as_text(answerPointer->sdp);
+    putAnswer(data);
 }
