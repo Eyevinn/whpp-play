@@ -1,6 +1,8 @@
 #define GST_USE_UNSTABLE_API 1 // Removes compile warning
 
 #include "nlohmann/json.hpp"
+#include <csignal>
+#include <cstdint>
 #include <glib.h>
 #include <gst/gst.h>
 #include <gst/sdp/sdp.h>
@@ -12,6 +14,7 @@
 #include <string.h>
 
 typedef struct _CustomData {
+
     GstElement* webrtc_source;
     GstElement* pipeline;
     GstElement* rtp_depay_vp8;
@@ -22,42 +25,32 @@ typedef struct _CustomData {
     std::string location;
     std::string whppURL;
 
-    /*
-         _CustomData()
-           {
-                // printf("Constructor executed\n");
-                GstElement* webrtc_source;
-                GstElement* pipeline;
-                GstElement* rtp_depay_vp8;
-                GstElement* vp8_decoder;
-                GstElement* sinkElement;
-                std::string sdpOffer;
-                std::string sdpAnswer;
-                std::string location;
-                std::string whppURL;
+    _CustomData()
+    {
+    }
 
-           }
+    ~_CustomData()
+    {
 
-           ~_CustomData()
-              {
-                    // printf("Destructor executed\n");
-                    g_object_unref(webrtc_source);
-                    g_object_unref(pipeline);
-                    g_object_unref(rtp_depay_vp8);
-                    g_object_unref(sinkElement);
-                    g_object_unref(sdpOffer);
-                    g_object_unref(sdpAnswer);
-                    g_object_unref(location);
-                    g_object_unref(whppURL);
-              }
-        */
+        printf("\nDestructing resources...\n");
+        if (pipeline) {
+            g_object_unref(pipeline);
+        }
+    }
+
 } CustomData;
-//CustomData data;
 
+GMainLoop* mainLoop = nullptr;
 void padAddedHandler(GstElement* src, GstPad* pad, CustomData* data);
 void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
 void onRemoteDescSetCallback(GstPromise* promise, gpointer userData);
 void onNegotiationNeededCallback(GstElement* src, CustomData* data);
+
+void intSignalHandler(int32_t)
+{
+
+    g_main_loop_quit(mainLoop);
+}
 
 void handleSDPs(CustomData* data)
 {
@@ -75,7 +68,7 @@ void handleSDPs(CustomData* data)
     }
 
     GstPromise* promiseRemote = gst_promise_new_with_change_func(onRemoteDescSetCallback, data, nullptr);
-    if(!data->webrtc_source) {
+    if (!data->webrtc_source) {
         printf("webrtc_source is NULL\n");
     }
 
@@ -114,7 +107,6 @@ std::vector<std::string> getPostOffer(CustomData* data)
     g_object_unref(session);
 
     return strVec;
-
 }
 
 void putAnswer(CustomData* data)
@@ -155,12 +147,13 @@ void putAnswer(CustomData* data)
 
 int32_t main(int32_t argc, char** argv)
 {
+    CustomData data;
 
     if (argc < 2) {
         printf("Usage: ./whpp-play WHPP-URL\n");
         return 1;
     }
-    CustomData data;
+
     data.whppURL = argv[1];
     std::vector<std::string> offerLocation = getPostOffer(&data);
     data.sdpOffer = offerLocation[0];
@@ -224,23 +217,29 @@ int32_t main(int32_t argc, char** argv)
     g_signal_connect(data.webrtc_source, "pad-added", G_CALLBACK(padAddedHandler), &data);
     g_signal_connect(data.webrtc_source, "on-negotiation-needed", G_CALLBACK(onNegotiationNeededCallback), &data);
 
+    {
+        struct sigaction sigactionData = {};
+        sigactionData.sa_handler = intSignalHandler;
+        sigactionData.sa_flags = 0;
+        sigemptyset(&sigactionData.sa_mask);
+        sigaction(SIGINT, &sigactionData, nullptr);
+    }
+
     // Start playing
     printf("Start playing...\n");
     if (gst_element_set_state(data.pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-        printf("Unable to set the pipeline to the playing state.\n");
+        printf("Unable to set the pipeline to the playing state\n");
         return 1;
     }
 
     printf("Looping...\n");
-    GMainLoop* mainLoop = g_main_loop_new(nullptr, FALSE);
+    mainLoop = g_main_loop_new(nullptr, FALSE);
     g_main_loop_run(mainLoop);
 
-    // Free resources
+    // Free resources - See CustomData destructor
     g_main_loop_unref(mainLoop);
     gst_element_set_state(data.pipeline, GST_STATE_NULL);
-    gst_object_unref(data.pipeline);
     gst_deinit();
-    printf("Returning...\n");
     return 0;
 }
 
@@ -262,8 +261,7 @@ void onNegotiationNeededCallback(GstElement* src, CustomData* data)
 
 void onRemoteDescSetCallback(GstPromise* promise, gpointer userData)
 {
-    auto data =  reinterpret_cast <CustomData*> (userData);
-    printf("onRemoteDescSetCallback: Callback..\n");
+    auto data = reinterpret_cast<CustomData*>(userData);
 
     if (gst_promise_wait(promise) != GST_PROMISE_RESULT_REPLIED) {
         printf("onRemoteDescSetCallback: Failed to receive promise reply\n");
@@ -278,11 +276,7 @@ void onRemoteDescSetCallback(GstPromise* promise, gpointer userData)
 void onAnswerCreatedCallback(GstPromise* promise, gpointer userData)
 {
 
-    printf("answerCallback...   \n");
-    printf("-----   \n");
-    auto data =  reinterpret_cast <CustomData*> (userData);
-    printf("%s\n", data->location.c_str());
-    printf("-----   \n");
+    auto data = reinterpret_cast<CustomData*>(userData);
 
     GstWebRTCSessionDescription* answerPointer = nullptr;
 
@@ -296,7 +290,7 @@ void onAnswerCreatedCallback(GstPromise* promise, gpointer userData)
 
     gst_structure_get(reply, "answer", GST_TYPE_WEBRTC_SESSION_DESCRIPTION, &answerPointer, nullptr);
     if (!answerPointer->sdp) {
-        printf("ERROR: No answer sdp!   \n");
+        printf("ERROR: No answer sdp!\n");
     }
 
     g_signal_emit_by_name(data->webrtc_source, "set-local-description", answerPointer, nullptr);
