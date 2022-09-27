@@ -154,7 +154,7 @@ int32_t main(int32_t argc, char** argv)
     CustomData data;
 
     if (argc < 2) {
-        printf("Usage: ./whpp-play WHPP-URL\n");
+        printf("Usage: GST_PLUGIN_PATH=my/plugin/path/gstreamer-1.0 ./whpp-play WHPP-URL\n");
         return 1;
     }
 
@@ -168,7 +168,7 @@ int32_t main(int32_t argc, char** argv)
     // Make elements
     data.webrtc_source = gst_element_factory_make("webrtcbin", "source");
     if (!data.webrtc_source) {
-        printf("Failed to make element source\n");
+        printf("Failed to make element source. Note: GST_PLUGIN_PATH needs to be set as described in the README\n");
         return 1;
     }
 
@@ -198,7 +198,7 @@ int32_t main(int32_t argc, char** argv)
 
     // Add elements
     if (!gst_bin_add(GST_BIN(data.pipeline), data.webrtc_source)) {
-        printf("Failed to add element source\n");
+        printf("Failed to add element source. Note: GST_PLUGIN_PATH needs to be set as described in the README\n\n");
         return 1;
     }
 
