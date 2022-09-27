@@ -7,24 +7,32 @@ Video player for WebRTC streams using WHPP as SDP exchange protocol
 ## OSX
 
 Requirements:
-- XCode command line tools installs
+- XCode command line tools installed
 - Install additional dependencies using homebrew
 
 ```
-brew install gstreamer gst-plugins-good gst-plugins-bad libsoup@2 icu4c cmake gst-libav
+brew install gstreamer gst-plugins-bad libsoup@2 icu4c cmake gst-libav
 ```
 
-Build:
+### Build and install
 
 ```
 cmake -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" .
 make
+sudo make install
 ```
 
-Run:
+### Run
+
+To run you need to set the `GST_PLUGIN_PATH` environment variable to where you have the gstreamer plugins installed, e.g:
 
 ```
-GST_PLUGIN_PATH=/opt/homebrew/lib/gstreamer-1.0 ./whpp-play <WHPP URL>
+export GST_PLUGIN_PATH=/opt/homebrew/lib/gstreamer-1.0
+```
+
+Then run the command.
+```
+whpp-play <WHPP URL>
 ```
 
 ## Debug
