@@ -168,7 +168,7 @@ int32_t main(int32_t argc, char** argv)
     // Make elements
     data.webrtc_source = gst_element_factory_make("webrtcbin", "source");
     if (!data.webrtc_source) {
-        printf("Failed to make element source. Note: GST_PLUGIN_PATH needs to be set as described in the README\n");
+        printf("Failed to make element source. Note: GST_PLUGIN_PATH needs to be set as described in the README.\n");
         return 1;
     }
 
