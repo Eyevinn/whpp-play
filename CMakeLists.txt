@@ -40,3 +40,5 @@ target_link_libraries(${PROJECT_NAME}
         ${GSTREAMER_WEBRTC_LDFLAGS}
         ${GSTREAMER_SDP_LDFLAGS}
         ${SOUP_LDFLAGS})
+
+install(TARGETS whpp-play DESTINATION bin)
