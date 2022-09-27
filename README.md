@@ -4,7 +4,9 @@
 
 Video player for WebRTC streams using WHPP as SDP exchange protocol
 
-## OSX
+## Build from source
+
+### OSX
 
 Requirements:
 - XCode command line tools installed
@@ -14,15 +16,28 @@ Requirements:
 brew install gstreamer gst-plugins-bad libsoup@2 icu4c cmake gst-libav
 ```
 
-### Build and install
-
 ```
 cmake -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" .
 make
 sudo make install
 ```
 
-### Run
+## Homebrew install
+
+It is available in our `eyevinn/tools` tap, install it by running this command.
+
+```
+brew install eyevinn/tools/whpp-play
+```
+
+or
+
+```
+brew tap eyevinn/tools
+brew install whpp-play
+```
+
+## Run
 
 To run you need to set the `GST_PLUGIN_PATH` environment variable to where you have the gstreamer plugins installed, e.g:
 
