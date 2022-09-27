@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct _CustomData {
+struct CustomData {
 
     GstElement* webrtc_source;
     GstElement* pipeline;
@@ -25,11 +25,16 @@ typedef struct _CustomData {
     std::string location;
     std::string whppURL;
 
-    _CustomData()
+    CustomData()
+        : webrtc_source(nullptr)
+        , pipeline(nullptr)
+        , rtp_depay_vp8(nullptr)
+        , vp8_decoder(nullptr)
+        , sinkElement(nullptr)
     {
     }
 
-    ~_CustomData()
+    ~CustomData()
     {
 
         printf("\nDestructing resources...\n");
@@ -37,8 +42,7 @@ typedef struct _CustomData {
             g_object_unref(pipeline);
         }
     }
-
-} CustomData;
+};
 
 GMainLoop* mainLoop = nullptr;
 void padAddedHandler(GstElement* src, GstPad* pad, CustomData* data);
