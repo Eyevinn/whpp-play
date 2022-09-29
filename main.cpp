@@ -49,6 +49,7 @@ void padAddedHandler(GstElement* src, GstPad* pad, CustomData* data);
 void onAnswerCreatedCallback(GstPromise* promise, gpointer userData);
 void onRemoteDescSetCallback(GstPromise* promise, gpointer userData);
 void onNegotiationNeededCallback(GstElement* src, CustomData* data);
+void onIceCandidate(GstElement* src, guint mline_index, gchararray candidate, gpointer data);
 
 void intSignalHandler(int32_t)
 {
@@ -220,6 +221,7 @@ int32_t main(int32_t argc, char** argv)
     // Signals
     g_signal_connect(data.webrtc_source, "pad-added", G_CALLBACK(padAddedHandler), &data);
     g_signal_connect(data.webrtc_source, "on-negotiation-needed", G_CALLBACK(onNegotiationNeededCallback), &data);
+    g_signal_connect(data.webrtc_source, "on-ice-candidate", G_CALLBACK(onIceCandidate), nullptr);
 
     {
         struct sigaction sigactionData = {};
@@ -261,6 +263,10 @@ void onNegotiationNeededCallback(GstElement* src, CustomData* data)
 {
 
     handleSDPs(data);
+}
+
+void onIceCandidate(GstElement* src, guint mline_index, gchararray candidate, gpointer data) {
+    printf("%s\n", candidate);
 }
 
 void onRemoteDescSetCallback(GstPromise* promise, gpointer userData)
