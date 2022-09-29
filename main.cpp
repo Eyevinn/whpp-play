@@ -43,6 +43,12 @@ struct CustomData
     }
 };
 
+std::map<GstWebRTCICEGatheringState, std::string> ICE_GATHER_STATE_MAP {
+    { GST_WEBRTC_ICE_GATHERING_STATE_NEW, "new" },
+    { GST_WEBRTC_ICE_GATHERING_STATE_GATHERING, "gathering" },
+    { GST_WEBRTC_ICE_GATHERING_STATE_COMPLETE, "complete" }
+};
+
 GMainLoop *mainLoop = nullptr;
 void padAddedHandler(GstElement *src, GstPad *pad, CustomData *data);
 void onAnswerCreatedCallback(GstPromise *promise, gpointer userData);
@@ -81,43 +87,41 @@ void handleSDPs(CustomData *data)
     g_signal_emit_by_name(data->webrtc_source, "set-remote-description", offerDesc, promiseRemote);
 }
 
-void gatherICECandidates(GstElement *src, guint mline_index, gchararray candidate, gpointer userData)
+void sendIceCandidate(CustomData *data, std::string candidate)
 {
-
-    printf("%s", "Gathering...\n");
-    GstWebRTCICEGatheringState iceGatherState;
-    auto data = reinterpret_cast<CustomData *>(userData);
-    std::string candidateString = candidate;
-    data->ICECandidates.push_back(candidateString);
-    g_object_get(data->webrtc_source, "ice-gathering-state", &iceGatherState, nullptr);
-       switch (iceGatherState)
-    {
-    case GST_WEBRTC_ICE_GATHERING_STATE_NEW:
-        printf("%s", "new state\n");
-        break;
-    case GST_WEBRTC_ICE_GATHERING_STATE_GATHERING:
-        printf("%s", "Gathering state\n");
-        break;
-    case GST_WEBRTC_ICE_GATHERING_STATE_COMPLETE:
-        printf("%s", "complete state\n");
-        break;
-    }
-}
-
-void sendICECandidates(CustomData *data)
-{
-
-     printf("%s", "Initiating send...\n");
-    for (unsigned long i = 0; i < data->ICECandidates.size(); i++)
-    {
-        printf("%s", data->ICECandidates[i].c_str());
-    }
-
     // PATCH data.location with ICE candidates received after PUT answer
     // printf("%s", candidate[0]);
 
-    // SoupSession* session = soup_session_new();
-    // SoupMessage* msg = soup_message_new("PATCH", data->location.c_str());
+    SoupSession* session = soup_session_new();
+    SoupMessage* msg = soup_message_new("PATCH", data->location.c_str());
+    if (!msg) {
+        printf("ERROR: Failed to create PATCH message");
+        return;
+    }
+    nlohmann::json req_body;
+    req_body["candidate"] = candidate;
+    soup_message_set_request(msg, "application/whpp+json", SOUP_MEMORY_COPY, req_body.dump().c_str(), req_body.dump().length());
+    auto statusCode = soup_session_send_message(session, msg);
+    if (statusCode != 204) {
+        printf("Failed to send ICE candidate: %s\n", msg->response_body->data);
+    }
+
+    // Cleanup
+    g_object_unref(msg);
+    g_object_unref(session);
+}
+
+void onIceCandidate(GstElement *src, guint mline_index, gchararray candidate, gpointer userData)
+{
+    GstWebRTCICEGatheringState iceGatherState;
+    auto data = reinterpret_cast<CustomData *>(userData);
+    g_object_get(data->webrtc_source, "ice-gathering-state", &iceGatherState, nullptr);
+
+    printf("state=%s %s\n", ICE_GATHER_STATE_MAP[iceGatherState].c_str(), candidate);
+
+    std::string candidateString = candidate;
+    data->ICECandidates.push_back(candidateString);
+    sendIceCandidate(data, candidateString);
 }
 
 std::vector<std::string> getPostOffer(CustomData *data)
@@ -166,34 +170,20 @@ void putAnswer(CustomData *data)
         printf("ERROR: when creating msg in putAnswer()\n");
         exit(EXIT_FAILURE);
     }
-    GError *error = nullptr;
     nlohmann::json req_body;
     const char *sdp = data->sdpAnswer.c_str();
     req_body["answer"] = sdp;
 
-    g_signal_connect(data->webrtc_source, "on-ice-candidate", G_CALLBACK(gatherICECandidates), data);
+    g_signal_connect(data->webrtc_source, "on-ice-candidate", G_CALLBACK(onIceCandidate), data);
     soup_message_set_request(msg, "application/whpp+json", SOUP_MEMORY_COPY, req_body.dump().c_str(), req_body.dump().length());
-
-    if (error)
-    {
-        printf("Failed put generation: %s\n", error->message);
-        g_error_free(error);
-        g_object_unref(msg);
-        g_object_unref(session);
-    }
-
     auto statusCode = soup_session_send_message(session, msg);
+    if (statusCode != 200 && statusCode != 204) {
+        printf("%d:%s\n", statusCode, msg->response_body->data);  
+    }
 
     // Cleanup
     g_object_unref(msg);
     g_object_unref(session);
-
-    if (statusCode != 204)
-    {
-        printf("%s", "ERROR: ");
-    }
-
-    printf("%i \n", statusCode);
 }
 
 int32_t main(int32_t argc, char **argv)
@@ -249,10 +239,18 @@ int32_t main(int32_t argc, char **argv)
         return 1;
     }
 
-    g_object_set(data.webrtc_source,
-                 "stun-server",
-                 "stun://stun.l.google.com:19302",
-                 nullptr);
+    const char* iceServer = std::getenv("ICE_SERVER");
+    if (iceServer == nullptr) {
+        g_object_set(data.webrtc_source,
+                    "stun-server",
+                    "stun://stun.l.google.com:19302",
+                    nullptr);
+    } else {
+        g_object_set(data.webrtc_source,
+                    "turn-server",
+                    iceServer,
+                    nullptr);
+    }
 
     // Add elements
     if (!gst_bin_add(GST_BIN(data.pipeline), data.webrtc_source))
@@ -370,5 +368,4 @@ void onAnswerCreatedCallback(GstPromise *promise, gpointer userData)
     g_signal_emit_by_name(data->webrtc_source, "set-local-description", answerPointer, nullptr);
     data->sdpAnswer = gst_sdp_message_as_text(answerPointer->sdp);
     putAnswer(data);
-    sendICECandidates(data);
 }
