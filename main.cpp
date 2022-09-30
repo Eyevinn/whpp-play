@@ -15,7 +15,6 @@
 
 struct CustomData
 {
-
     GstElement *webrtc_source;
     GstElement *pipeline;
     GstElement *rtp_depay_vp8;
@@ -26,6 +25,12 @@ struct CustomData
     std::string location;
     std::string whppURL;
     std::vector<std::string> ICECandidates;
+    std::map<GstWebRTCICEGatheringState, std::string> ICE_GATHER_STATE_MAP{
+        {GST_WEBRTC_ICE_GATHERING_STATE_NEW, "new"},
+        {GST_WEBRTC_ICE_GATHERING_STATE_GATHERING, "gathering"},
+        {GST_WEBRTC_ICE_GATHERING_STATE_COMPLETE, "complete"}
+
+    };
 
     CustomData()
         : webrtc_source(nullptr), pipeline(nullptr), rtp_depay_vp8(nullptr), vp8_decoder(nullptr), sinkElement(nullptr)
@@ -34,19 +39,12 @@ struct CustomData
 
     ~CustomData()
     {
-
         printf("\nDestructing resources...\n");
         if (pipeline)
         {
             g_object_unref(pipeline);
         }
     }
-};
-
-std::map<GstWebRTCICEGatheringState, std::string> ICE_GATHER_STATE_MAP {
-    { GST_WEBRTC_ICE_GATHERING_STATE_NEW, "new" },
-    { GST_WEBRTC_ICE_GATHERING_STATE_GATHERING, "gathering" },
-    { GST_WEBRTC_ICE_GATHERING_STATE_COMPLETE, "complete" }
 };
 
 GMainLoop *mainLoop = nullptr;
@@ -57,13 +55,11 @@ void onNegotiationNeededCallback(GstElement *src, CustomData *data);
 
 void intSignalHandler(int32_t)
 {
-
     g_main_loop_quit(mainLoop);
 }
 
 void handleSDPs(CustomData *data)
 {
-
     GstSDPMessage *offerMessage;
     GstWebRTCSessionDescription *offerDesc;
 
@@ -89,12 +85,10 @@ void handleSDPs(CustomData *data)
 
 void sendIceCandidate(CustomData *data, std::string candidate)
 {
-    // PATCH data.location with ICE candidates received after PUT answer
-    // printf("%s", candidate[0]);
-
-    SoupSession* session = soup_session_new();
-    SoupMessage* msg = soup_message_new("PATCH", data->location.c_str());
-    if (!msg) {
+    SoupSession *session = soup_session_new();
+    SoupMessage *msg = soup_message_new("PATCH", data->location.c_str());
+    if (!msg)
+    {
         printf("ERROR: Failed to create PATCH message");
         return;
     }
@@ -102,7 +96,8 @@ void sendIceCandidate(CustomData *data, std::string candidate)
     req_body["candidate"] = candidate;
     soup_message_set_request(msg, "application/whpp+json", SOUP_MEMORY_COPY, req_body.dump().c_str(), req_body.dump().length());
     auto statusCode = soup_session_send_message(session, msg);
-    if (statusCode != 204) {
+    if (statusCode != 204)
+    {
         printf("Failed to send ICE candidate: %s\n", msg->response_body->data);
     }
 
@@ -117,7 +112,7 @@ void onIceCandidate(GstElement *src, guint mline_index, gchararray candidate, gp
     auto data = reinterpret_cast<CustomData *>(userData);
     g_object_get(data->webrtc_source, "ice-gathering-state", &iceGatherState, nullptr);
 
-    printf("state=%s %s\n", ICE_GATHER_STATE_MAP[iceGatherState].c_str(), candidate);
+    printf("state=%s %s\n", data->ICE_GATHER_STATE_MAP[iceGatherState].c_str(), candidate);
 
     std::string candidateString = candidate;
     data->ICECandidates.push_back(candidateString);
@@ -126,7 +121,6 @@ void onIceCandidate(GstElement *src, guint mline_index, gchararray candidate, gp
 
 std::vector<std::string> getPostOffer(CustomData *data)
 {
-
     SoupSession *session = soup_session_new();
 
     SoupMessage *msg = soup_message_new("POST", data->whppURL.c_str());
@@ -135,16 +129,8 @@ std::vector<std::string> getPostOffer(CustomData *data)
         printf("ERROR: NULL msg in getPostOffer()\n");
         exit(EXIT_FAILURE);
     }
-    GError *error = nullptr;
-    soup_session_send_message(session, msg);
 
-    if (error)
-    {
-        printf("Failed to download: %s\n", error->message);
-        g_error_free(error);
-        g_object_unref(msg);
-        g_object_unref(session);
-    }
+    soup_session_send_message(session, msg);
 
     const char *location = soup_message_headers_get_one(msg->response_headers, "location");
     nlohmann::json responseJson = nlohmann::json::parse(msg->response_body->data);
@@ -162,7 +148,6 @@ std::vector<std::string> getPostOffer(CustomData *data)
 
 void putAnswer(CustomData *data)
 {
-
     SoupSession *session = soup_session_new();
     SoupMessage *msg = soup_message_new("PUT", data->location.c_str());
     if (!msg)
@@ -177,8 +162,9 @@ void putAnswer(CustomData *data)
     g_signal_connect(data->webrtc_source, "on-ice-candidate", G_CALLBACK(onIceCandidate), data);
     soup_message_set_request(msg, "application/whpp+json", SOUP_MEMORY_COPY, req_body.dump().c_str(), req_body.dump().length());
     auto statusCode = soup_session_send_message(session, msg);
-    if (statusCode != 200 && statusCode != 204) {
-        printf("%d:%s\n", statusCode, msg->response_body->data);  
+    if (statusCode != 200 && statusCode != 204)
+    {
+        printf("%d:%s\n", statusCode, msg->response_body->data);
     }
 
     // Cleanup
@@ -193,6 +179,7 @@ int32_t main(int32_t argc, char **argv)
     if (argc < 2)
     {
         printf("Usage: GST_PLUGIN_PATH=my/plugin/path/gstreamer-1.0 ./whpp-play WHPP-URL\n");
+        printf("Usage: ICE_SERVER=turn://username:password@host:port GST_PLUGIN_PATH=my/plugin/path/gstreamer-1.0 ./whpp-play WHPP-URL\n");
         return 1;
     }
 
@@ -239,23 +226,33 @@ int32_t main(int32_t argc, char **argv)
         return 1;
     }
 
-    const char* iceServer = std::getenv("ICE_SERVER");
-    if (iceServer == nullptr) {
+    // Set Server
+    const char *iceServer = std::getenv("ICE_SERVER");
+    if (iceServer == nullptr)
+    {
         g_object_set(data.webrtc_source,
-                    "stun-server",
-                    "stun://stun.l.google.com:19302",
-                    nullptr);
-    } else {
+                     "stun-server",
+                     "stun://stun.l.google.com:19302",
+                     nullptr);
+        char *stunServer = nullptr;
+        g_object_get(data.webrtc_source, "stun-server", &stunServer, nullptr);
+        printf("STUN server: %s\n", stunServer);
+    }
+    else
+    {
         g_object_set(data.webrtc_source,
-                    "turn-server",
-                    iceServer,
-                    nullptr);
+                     "turn-server",
+                     iceServer,
+                     nullptr);
+        char *turnServer = nullptr;
+        g_object_get(data.webrtc_source, "turn-server", &turnServer, nullptr);
+        printf("TURN server: %s\n", turnServer);
     }
 
     // Add elements
     if (!gst_bin_add(GST_BIN(data.pipeline), data.webrtc_source))
     {
-        printf("Failed to add element source. Note: GST_PLUGIN_PATH needs to be set as described in the README\n\n");
+        printf("Failed to add element source. Note: GST_PLUGIN_PATH needs to be set as described in the README\n");
         return 1;
     }
 
@@ -280,7 +277,6 @@ int32_t main(int32_t argc, char **argv)
     // Signals
     g_signal_connect(data.webrtc_source, "pad-added", G_CALLBACK(padAddedHandler), &data);
     g_signal_connect(data.webrtc_source, "on-negotiation-needed", G_CALLBACK(onNegotiationNeededCallback), &data);
-
 
     {
         struct sigaction sigactionData = {};
@@ -311,20 +307,16 @@ int32_t main(int32_t argc, char **argv)
 
 void padAddedHandler(GstElement *src, GstPad *new_pad, CustomData *data)
 {
-
     printf("Received new pad '%s' from '%s'\n", GST_PAD_NAME(new_pad), GST_ELEMENT_NAME(src));
 
     if (!gst_element_link_many(src, data->rtp_depay_vp8, data->vp8_decoder, data->sinkElement, nullptr))
     {
         printf("Failed to link source to sink\n");
     }
-
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(data->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
 }
 
 void onNegotiationNeededCallback(GstElement *src, CustomData *data)
 {
-
     handleSDPs(data);
 }
 
@@ -345,7 +337,6 @@ void onRemoteDescSetCallback(GstPromise *promise, gpointer userData)
 
 void onAnswerCreatedCallback(GstPromise *promise, gpointer userData)
 {
-
     auto data = reinterpret_cast<CustomData *>(userData);
 
     GstWebRTCSessionDescription *answerPointer = nullptr;
