@@ -35,6 +35,11 @@ Then run the command.
 whpp-play <WHPP URL>
 ```
 
+To set ICEserver run the command.
+```
+ICE_SERVER=turn://username:password@host:port GST_PLUGIN_PATH=my/plugin/path/gstreamer-1.0 ./whpp-play WHPP-URL
+```
+
 ## Debug
 
 Run with the following environment variables set:
